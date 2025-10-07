@@ -8,13 +8,13 @@ export const API_CONFIG = {
     // Health check
     health: '/health',
     
-    // Shipments
-    shipments: '/api/shipments',
-    shipment: (id: string) => `/api/shipments/${id}`,
-    shipmentEvents: (id: string) => `/api/shipments/${id}/events`,
+    // Shipments (FastAPI backend endpoints)
+    shipments: '/shipments',
+    shipment: (id: string) => `/shipments/${id}`,
+    shipmentEvents: (id: string) => `/shipments/${id}/events`,
     
     // Analytics
-    analytics: '/api/analytics/dashboard',
+    analytics: '/analytics/dashboard',
   },
   
   // Request headers
@@ -40,6 +40,8 @@ export class ApiClient {
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`
     
+    console.log(`🌐 API Request: ${options.method || 'GET'} ${url}`)
+    
     const config: RequestInit = {
       ...options,
       headers: {
@@ -51,11 +53,16 @@ export class ApiClient {
     try {
       const response = await fetch(url, config)
       
+      console.log(`📡 API Response: ${response.status} ${response.statusText}`)
+      
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const errorText = await response.text()
+        console.error(`❌ API Error Response:`, errorText)
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`)
       }
       
       const data = await response.json()
+      console.log(`✅ API Success:`, data)
       return data
     } catch (error) {
       console.error(`API request failed for ${endpoint}:`, error)

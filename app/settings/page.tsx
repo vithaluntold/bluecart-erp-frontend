@@ -18,12 +18,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useAuth } from "@/lib/auth-context"
-import { hubs } from "@/lib/dummy-data"
+import { apiClient } from "@/lib/api-client"
 import { User, Bell, Shield, Building2, Key, Globe } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { useEffect } from "react"
 
 export default function SettingsPage() {
-  const { currentUser } = useAuth()
+  const { currentUser, updateCurrentUser } = useAuth()
   const { toast } = useToast()
 
   // Notification states
@@ -52,11 +53,77 @@ export default function SettingsPage() {
   // Notification preferences states
   const [isSavingNotifications, setIsSavingNotifications] = useState(false)
 
+  // Profile states
+  const [name, setName] = useState(currentUser?.name || "")
+  const [email, setEmail] = useState(currentUser?.email || "")
+  const [phone, setPhone] = useState(currentUser?.phone || "")
+  const [role, setRole] = useState(currentUser?.role || "")
+  const [address, setAddress] = useState("")
+  const [city, setCity] = useState("")
+  const [state, setState] = useState("")
+  const [zipCode, setZipCode] = useState("")
+  const [isSavingProfile, setIsSavingProfile] = useState(false)
+
+  // Dynamic data states
+  const [hubs, setHubs] = useState<any[]>([])
+  const [loadingHubs, setLoadingHubs] = useState(true)
+
+  // Initialize profile data when currentUser changes
+  useEffect(() => {
+    if (currentUser) {
+      setName(currentUser.name || "")
+      setEmail(currentUser.email || "")
+      setPhone(currentUser.phone || "")
+      setRole(currentUser.role || "")
+      // Initialize address fields (you might want to add these to the user object later)
+      setAddress("")
+      setCity("")
+      setState("")
+      setZipCode("")
+    }
+  }, [currentUser])
+
+  // Fetch hubs on component mount
+  useEffect(() => {
+    const fetchHubs = async () => {
+      try {
+        setLoadingHubs(true)
+        const response = await apiClient.getHubs() as any
+        setHubs(response.hubs || [])
+      } catch (error) {
+        console.error('Failed to fetch hubs:', error)
+        toast({
+          title: "Error",
+          description: "Failed to load hubs data.",
+          variant: "destructive",
+        })
+      } finally {
+        setLoadingHubs(false)
+      }
+    }
+
+    fetchHubs()
+  }, [toast])
+
   if (!currentUser) return null
 
   const isAdmin = currentUser.role === "admin"
   const isHubManager = currentUser.role === "hub-manager"
   const isDeliveryPersonnel = currentUser.role === "delivery-personnel"
+
+  // Check if profile has unsaved changes
+  const hasProfileChanges = () => {
+    return (
+      name !== (currentUser?.name || "") ||
+      email !== (currentUser?.email || "") ||
+      phone !== (currentUser?.phone || "") ||
+      role !== (currentUser?.role || "") ||
+      address.trim() !== "" ||
+      city.trim() !== "" ||
+      state.trim() !== "" ||
+      zipCode.trim() !== ""
+    )
+  }
 
   // Password validation
   const validatePassword = () => {
@@ -237,6 +304,103 @@ export default function SettingsPage() {
     })
   }
 
+  // Profile handlers
+  const handleSaveProfile = async () => {
+    console.log("[v0] Save profile clicked")
+    
+    // Basic validation
+    if (!name.trim() || !email.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Name and email are required fields.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (email && !/\S+@\S+\.\S+/.test(email)) {
+      toast({
+        title: "Validation Error", 
+        description: "Please enter a valid email address.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!currentUser) {
+      toast({
+        title: "Error",
+        description: "No user found to update.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSavingProfile(true)
+    
+    try {
+      // Prepare update data
+      const updateData = {
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        role: role,
+        address: address.trim(),
+        city: city.trim(),
+        state: state.trim(),
+        zipCode: zipCode.trim(),
+      }
+
+      console.log("[v0] Updating profile with:", updateData)
+
+      // Call API to update user
+      const updatedUser = await apiClient.updateUser(currentUser.id, updateData)
+      
+      console.log("[v0] API response:", updatedUser)
+
+      // Update the current user in auth context
+      updateCurrentUser({
+        ...updateData,
+        role: role as any // Cast to UserRole type
+      })
+
+      toast({
+        title: "Profile Updated",
+        description: "Your profile has been updated successfully.",
+      })
+    } catch (error) {
+      console.error("[v0] Error updating profile:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update profile. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSavingProfile(false)
+    }
+  }
+
+  const handleCancelProfile = () => {
+    console.log("[v0] Cancel profile clicked")
+    
+    // Reset to original values
+    if (currentUser) {
+      setName(currentUser.name || "")
+      setEmail(currentUser.email || "")
+      setPhone(currentUser.phone || "")
+      setRole(currentUser.role || "")
+      setAddress("")
+      setCity("")
+      setState("")
+      setZipCode("")
+    }
+
+    toast({
+      title: "Changes Cancelled",
+      description: "Profile changes have been cancelled.",
+    })
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -281,45 +445,106 @@ export default function SettingsPage() {
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
-                  <Input id="name" defaultValue={currentUser.name} />
+                  <Label htmlFor="name">Full Name *</Label>
+                  <Input 
+                    id="name" 
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Enter your full name"
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" defaultValue={currentUser.email} />
+                  <Label htmlFor="email">Email *</Label>
+                  <Input 
+                    id="email" 
+                    type="email" 
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your email"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone Number</Label>
-                  <Input id="phone" type="tel" defaultValue={currentUser.phone} />
+                  <Input 
+                    id="phone" 
+                    type="tel" 
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="Enter your phone number"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="role">Role</Label>
-                  <Input id="role" defaultValue={currentUser.role} disabled className="bg-muted" />
+                  {isAdmin ? (
+                    <Select value={role} onValueChange={setRole}>
+                      <SelectTrigger id="role">
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="hub-manager">Hub Manager</SelectItem>
+                        <SelectItem value="delivery-personnel">Delivery Personnel</SelectItem>
+                        <SelectItem value="operations">Operations</SelectItem>
+                        <SelectItem value="customer">Customer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input id="role" value={role} disabled className="bg-muted" />
+                  )}
                 </div>
               </div>
               <Separator />
               <div className="space-y-2">
                 <Label htmlFor="address">Address</Label>
-                <Input id="address" placeholder="Enter your address" />
+                <Input 
+                  id="address" 
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="Enter your full address" 
+                />
               </div>
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="city">City</Label>
-                  <Input id="city" placeholder="City" />
+                  <Input 
+                    id="city" 
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="Enter city" 
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="state">State</Label>
-                  <Input id="state" placeholder="State" />
+                  <Input 
+                    id="state" 
+                    value={state}
+                    onChange={(e) => setState(e.target.value)}
+                    placeholder="Enter state" 
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="zip">ZIP Code</Label>
-                  <Input id="zip" placeholder="ZIP" />
+                  <Input 
+                    id="zip" 
+                    value={zipCode}
+                    onChange={(e) => setZipCode(e.target.value)}
+                    placeholder="Enter ZIP code" 
+                  />
                 </div>
               </div>
               <div className="flex justify-end gap-2">
-                <Button variant="outline">Cancel</Button>
-                <Button>Save Changes</Button>
+                <Button variant="outline" onClick={handleCancelProfile}>
+                  {hasProfileChanges() ? "Cancel Changes" : "Cancel"}
+                </Button>
+                <Button onClick={handleSaveProfile} disabled={isSavingProfile || !hasProfileChanges()}>
+                  {isSavingProfile ? "Saving..." : "Save Changes"}
+                </Button>
               </div>
+              {hasProfileChanges() && (
+                <p className="text-sm text-yellow-600 dark:text-yellow-400 mt-2">
+                  ⚠️ You have unsaved changes
+                </p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -487,16 +712,20 @@ export default function SettingsPage() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="assigned-hub">Assigned Hub</Label>
-                  <Select defaultValue={currentUser.hubId}>
+                  <Select defaultValue={currentUser.hubId} disabled={loadingHubs}>
                     <SelectTrigger id="assigned-hub">
-                      <SelectValue />
+                      <SelectValue placeholder={loadingHubs ? "Loading hubs..." : "Select hub"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {hubs.map((hub) => (
-                        <SelectItem key={hub.id} value={hub.id}>
-                          {hub.name} - {hub.city}
-                        </SelectItem>
-                      ))}
+                      {loadingHubs ? (
+                        <SelectItem value="loading" disabled>Loading hubs...</SelectItem>
+                      ) : (
+                        hubs.map((hub: any) => (
+                          <SelectItem key={hub.id} value={hub.id}>
+                            {hub.name} - {hub.city}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                   <p className="text-sm text-muted-foreground">

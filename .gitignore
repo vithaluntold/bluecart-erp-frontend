@@ -1,27 +1,78 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Dependencies# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
+node_modules/
+
+.pnpm-debug.log*# dependencies
+
 /node_modules
 
-# next.js
-/.next/
-/out/
+# Next.js
 
-# production
-/build
+.next/# next.js
 
-# debug
-npm-debug.log*
-yarn-debug.log*
+out//.next/
+
+build//out/
+
+
+
+# Production builds# production
+
+dist//build
+
+
+
+# Environment variables# debug
+
+.env*npm-debug.log*
+
+!.env.exampleyarn-debug.log*
+
 yarn-error.log*
-.pnpm-debug.log*
 
-# env files
-.env*
+# Logs.pnpm-debug.log*
+
+*.log
+
+npm-debug.log*# env files
+
+yarn-debug.log*.env*
+
+yarn-error.log*
 
 # vercel
-.vercel
 
-# typescript
+# Runtime data.vercel
+
+pids
+
+*.pid# typescript
+
+*.seed*.tsbuildinfo
+
+*.pid.locknext-env.d.ts
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# TypeScript
 *.tsbuildinfo
 next-env.d.ts
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Vercel
+.vercel

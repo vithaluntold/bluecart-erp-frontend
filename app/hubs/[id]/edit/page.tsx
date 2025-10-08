@@ -42,8 +42,8 @@ export default function EditHubPage({ params }: { params: Promise<{ id: string }
         setFetchLoading(true)
         const response = await apiClient.getHub(id) as any
         
-        if (response && response.hub) {
-          const hub = response.hub
+        if (response) {
+          const hub = response
           setFormData({
             name: hub.name || "",
             code: hub.code || "",

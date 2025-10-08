@@ -6,6 +6,7 @@ import { type User, users } from "./dummy-data"
 interface AuthContextType {
   currentUser: User | null
   switchUser: (userId: string) => void
+  updateCurrentUser: (updates: Partial<User>) => void
   logout: () => void
 }
 
@@ -21,11 +22,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const updateCurrentUser = (updates: Partial<User>) => {
+    if (currentUser) {
+      setCurrentUser({ ...currentUser, ...updates })
+    }
+  }
+
   const logout = () => {
     setCurrentUser(null)
   }
 
-  return <AuthContext.Provider value={{ currentUser, switchUser, logout }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ currentUser, switchUser, updateCurrentUser, logout }}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {

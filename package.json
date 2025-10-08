@@ -1,6 +1,7 @@
 {
-  "name": "my-v0-project",
-  "version": "0.1.0",
+  "name": "bluecart-erp-frontend",
+  "version": "1.0.0",
+  "description": "BlueCart ERP Frontend - Modern logistics management system",
   "private": true,
   "scripts": {
     "build": "next build",

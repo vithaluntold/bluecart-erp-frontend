@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, Navigation, Plus, X } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { users, hubs, shipments } from "@/lib/dummy-data"
 import { useAuth } from "@/lib/auth-context"
 import { apiClient } from "@/lib/api-client"
 import { useToast } from "@/hooks/use-toast"
@@ -28,6 +27,50 @@ export default function AddRoutePage() {
   const [estimatedTime, setEstimatedTime] = useState("")
   const [selectedShipments, setSelectedShipments] = useState<string[]>([])
   const [stops, setStops] = useState<{ address: string; type: "pickup" | "delivery" }[]>([])
+  
+  // Dynamic data from API
+  const [hubs, setHubs] = useState<any[]>([])
+  const [shipments, setShipments] = useState<any[]>([])
+  const [drivers, setDrivers] = useState<any[]>([])
+  const [loadingData, setLoadingData] = useState(true)
+
+  // Fetch dynamic data on component mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoadingData(true)
+        
+        // Fetch hubs
+        const hubsResponse = await apiClient.getHubs() as any
+        setHubs(hubsResponse.hubs || [])
+        
+        // Fetch shipments  
+        const shipmentsResponse = await apiClient.getShipments() as any
+        setShipments(shipmentsResponse.shipments || [])
+        
+        // Fetch drivers/users
+        const usersResponse = await apiClient.getUsers() as any
+        const driversList = usersResponse.users?.filter((user: any) => user.role === 'driver') || []
+        setDrivers(driversList)
+        
+        console.log('🏢 Loaded hubs:', hubsResponse.hubs?.length || 0)
+        console.log('📦 Loaded shipments:', shipmentsResponse.shipments?.length || 0)
+        console.log('🚚 Loaded drivers:', driversList.length)
+        
+      } catch (error) {
+        console.error('Failed to fetch data:', error)
+        toast({
+          title: "Error",
+          description: "Failed to load hubs, drivers, and shipments data.",
+          variant: "destructive",
+        })
+      } finally {
+        setLoadingData(false)
+      }
+    }
+    
+    fetchData()
+  }, [toast])
 
   if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "operations")) {
     return (
@@ -42,8 +85,9 @@ export default function AddRoutePage() {
     )
   }
 
-  const deliveryPersonnel = users.filter((u) => u.role === "delivery-personnel")
-  const availableShipments = shipments.filter((s) => s.status === "pending" || s.status === "picked-up")
+  // Filter available drivers and shipments
+  const availableDrivers = drivers.filter((driver: any) => driver.status === "active")
+  const availableShipments = shipments.filter((s: any) => s.status === "pending" || s.status === "picked-up" || s.status === "in-transit")
 
   const handleAddStop = () => {
     setStops([...stops, { address: "", type: "delivery" }])
@@ -108,6 +152,28 @@ export default function AddRoutePage() {
     }
   }
 
+  // Show loading state while fetching data
+  if (loadingData) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Button variant="outline" size="icon" asChild>
+            <Link href="/routes">
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-balance">Create New Route</h1>
+            <p className="text-muted-foreground">Loading hubs, drivers, and shipments...</p>
+          </div>
+        </div>
+        <div className="flex items-center justify-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -150,7 +216,7 @@ export default function AddRoutePage() {
                         <SelectValue placeholder="Select driver" />
                       </SelectTrigger>
                       <SelectContent>
-                        {deliveryPersonnel.map((driver) => (
+                        {availableDrivers.map((driver: any) => (
                           <SelectItem key={driver.id} value={driver.id}>
                             {driver.name} - {driver.phone}
                           </SelectItem>
@@ -294,7 +360,7 @@ export default function AddRoutePage() {
                       <label htmlFor={`shipment-${shipment.id}`} className="text-sm flex-1 cursor-pointer">
                         <div className="font-medium">{shipment.trackingNumber}</div>
                         <div className="text-muted-foreground text-xs">
-                          {shipment.receiver.city} - {shipment.package.weight}kg
+                          {shipment.recipientName} - {shipment.weight}kg
                         </div>
                       </label>
                     </div>

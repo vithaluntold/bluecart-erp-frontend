@@ -13,6 +13,7 @@ import { ArrowLeft, UserPlus } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { hubs, type UserRole } from "@/lib/dummy-data"
+import { apiClient } from "@/lib/api-client"
 
 export default function AddUserPage() {
   const router = useRouter()
@@ -23,20 +24,55 @@ export default function AddUserPage() {
     role: "" as UserRole | "",
     phone: "",
     hubId: "",
+    password: "",
   })
+  const [loading, setLoading] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("[v0] New user form submitted:", formData)
+    setLoading(true)
+    
+    try {
+      console.log("[v0] New user form submitted:", formData)
+      
+      // Validate required fields
+      if (!formData.name || !formData.email || !formData.role || !formData.password) {
+        toast({
+          title: "Validation Error",
+          description: "Please fill in all required fields.",
+          variant: "destructive",
+        })
+        return
+      }
 
-    toast({
-      title: "User Added Successfully",
-      description: `${formData.name} has been added to the system.`,
-    })
+      const userData = {
+        name: formData.name,
+        email: formData.email,
+        role: formData.role,
+        phone: formData.phone || undefined,
+        hub_id: formData.hubId || undefined,
+        password: formData.password,
+      }
 
-    setTimeout(() => {
+      const response = await apiClient.createUser(userData)
+
+      toast({
+        title: "User Added Successfully",
+        description: `${formData.name} has been added to the system.`,
+      })
+
       router.push("/users")
-    }, 1000)
+      
+    } catch (error) {
+      console.error("Error creating user:", error)
+      toast({
+        title: "Error",
+        description: "Failed to create user. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleChange = (field: string, value: string) => {
@@ -114,6 +150,19 @@ export default function AddUserPage() {
                   placeholder="+91 98765 43210"
                   value={formData.phone}
                   onChange={(e) => handleChange("phone", e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password">Password *</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Enter password (min 6 characters)"
+                  value={formData.password}
+                  onChange={(e) => handleChange("password", e.target.value)}
+                  required
+                  minLength={6}
                 />
               </div>
 

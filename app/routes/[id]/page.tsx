@@ -1,5 +1,6 @@
 "use client"
 
+import { use, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -10,7 +11,6 @@ import { deliveryRoutes, users, shipments } from "@/lib/dummy-data"
 import { ArrowLeft, Navigation, User, Package, MapPin, Clock, Phone, FileText } from "lucide-react"
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -22,8 +22,8 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useRouter } from "next/navigation"
 
-export default function RouteDetailPage({ params }: { params: { id: string } }) {
-  const { id } = params
+export default function RouteDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const route = deliveryRoutes.find((r) => r.id === id)
   const router = useRouter()
 

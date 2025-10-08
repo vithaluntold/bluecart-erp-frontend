@@ -1,31 +1,99 @@
 "use client"
 
+import { use, useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { hubs, shipments, users } from "@/lib/dummy-data"
-import { ArrowLeft, MapPin, Phone, User, Package, Truck, TrendingUp } from "lucide-react"
+import { shipments, users } from "@/lib/dummy-data"
+import { ArrowLeft, MapPin, Phone, User, Package, Truck, TrendingUp, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { notFound, useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
+import { apiClient } from "@/lib/api-client"
 
-export default function HubDetailPage({ params }: { params: { id: string } }) {
-  const { id } = params
+export default function HubDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const router = useRouter()
   const { toast } = useToast()
+  const [hub, setHub] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const hub = hubs.find((h) => h.id === id)
+  useEffect(() => {
+    const fetchHub = async () => {
+      try {
+        setLoading(true)
+        console.log(`🔍 Fetching hub details for ID: ${id}`)
+        const response = await apiClient.getHub(id) as any
+        console.log('📋 Hub API response:', response)
+        
+        if (response && response.id) {
+          // API returns hub directly
+          setHub(response)
+          console.log('✅ Hub data loaded successfully:', response.name)
+        } else if (response && response.hub) {
+          // Handle case where API returns wrapped response
+          setHub(response.hub)
+          console.log('✅ Hub data loaded successfully:', response.hub.name)
+        } else {
+          console.log('❌ No hub data in response')
+          setError("Hub not found")
+        }
+      } catch (error) {
+        console.error("❌ Error fetching hub:", error)
+        setError("Failed to load hub data")
+        toast({
+          title: "Error",
+          description: "Failed to load hub details",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
 
-  if (!hub) {
-    notFound()
+    if (id) {
+      fetchHub()
+    }
+  }, [id, toast])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p>Loading hub details...</p>
+        </div>
+      </div>
+    )
   }
 
-  const hubShipments = shipments.filter((s) => s.currentHub === hub.id || s.route.includes(hub.id))
+  if (error || !hub) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild>
+            <Link href="/hubs">
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Hub Not Found</h1>
+            <p className="text-muted-foreground">{error || "The requested hub could not be found"}</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const hubShipments = shipments.filter((s) => s.currentHub === hub.id || s.route?.includes(hub.id))
   const hubStaff = users.filter((u) => u.hubId === hub.id)
-  const utilizationPercentage = (hub.currentLoad / hub.capacity) * 100
+  const currentLoad = hub.currentLoad || 0
+  const capacity = hub.capacity || 1
+  const utilizationPercentage = capacity > 0 ? (currentLoad / capacity) * 100 : 0
 
   const getStatusColor = (status: string) => {
     const colors = {
@@ -112,8 +180,8 @@ export default function HubDetailPage({ params }: { params: { id: string } }) {
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{hub.currentLoad.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">of {hub.capacity.toLocaleString()} capacity</p>
+            <div className="text-2xl font-bold">{currentLoad.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">of {capacity.toLocaleString()} capacity</p>
           </CardContent>
         </Card>
 
@@ -164,7 +232,7 @@ export default function HubDetailPage({ params }: { params: { id: string } }) {
                 <div>
                   <p className="text-sm font-medium">Address</p>
                   <p className="text-sm text-muted-foreground">
-                    {hub.address}, {hub.city}, {hub.state} - {hub.pincode}
+                    {hub.address}{hub.city ? `, ${hub.city}` : ''}{hub.state ? `, ${hub.state}` : ''}{hub.pincode ? ` - ${hub.pincode}` : ''}
                   </p>
                 </div>
               </div>
@@ -173,7 +241,7 @@ export default function HubDetailPage({ params }: { params: { id: string } }) {
                 <User className="h-5 w-5 text-muted-foreground mt-0.5" />
                 <div>
                   <p className="text-sm font-medium">Hub Manager</p>
-                  <p className="text-sm text-muted-foreground">{hub.manager}</p>
+                  <p className="text-sm text-muted-foreground">{hub.manager || 'Not assigned'}</p>
                 </div>
               </div>
               <Separator />
@@ -181,7 +249,7 @@ export default function HubDetailPage({ params }: { params: { id: string } }) {
                 <Phone className="h-5 w-5 text-muted-foreground mt-0.5" />
                 <div>
                   <p className="text-sm font-medium">Contact</p>
-                  <p className="text-sm text-muted-foreground">{hub.phone}</p>
+                  <p className="text-sm text-muted-foreground">{hub.phone || 'Not available'}</p>
                 </div>
               </div>
             </CardContent>
@@ -286,6 +354,11 @@ export default function HubDetailPage({ params }: { params: { id: string } }) {
               <CardTitle>Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
+              <Button className="w-full bg-transparent" variant="outline" asChild>
+                <Link href={`/hubs/${hub.id}/edit`}>
+                  Edit Hub
+                </Link>
+              </Button>
               <Button className="w-full bg-transparent" variant="outline" onClick={handleViewAllShipments}>
                 View All Shipments
               </Button>

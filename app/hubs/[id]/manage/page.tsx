@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { use, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,9 +15,10 @@ import { ArrowLeft, Save, Package, Settings } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
-export default function HubManagePage({ params }: { params: { id: string } }) {
+export default function HubManagePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const router = useRouter()
-  const hub = hubs.find((h) => h.id === params.id)
+  const hub = hubs.find((h) => h.id === id)
 
   const [formData, setFormData] = useState({
     name: hub?.name || "",
@@ -28,7 +29,7 @@ export default function HubManagePage({ params }: { params: { id: string } }) {
     pincode: hub?.pincode || "",
     capacity: hub?.capacity?.toString() || "",
     manager: hub?.manager || "",
-    phone: hub?.contact || "",
+    phone: hub?.phone || "",
     status: hub?.status || "active",
   })
 

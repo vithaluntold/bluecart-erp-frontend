@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { use, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -13,30 +13,14 @@ import Link from "next/link"
 import { notFound, useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 
-export default function DeliveryActionPage({ params }: { params: { id: string } }) {
-  const [resolvedParams, setResolvedParams] = useState<{ id: string } | null>(null)
+export default function DeliveryActionPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const { currentUser } = useAuth()
   const router = useRouter()
   const [notes, setNotes] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  useEffect(() => {
-    const resolveParams = async () => {
-      if (params instanceof Promise) {
-        const resolved = await params
-        setResolvedParams(resolved)
-      } else {
-        setResolvedParams(params)
-      }
-    }
-    resolveParams()
-  }, [params])
-
-  if (!resolvedParams) {
-    return null
-  }
-
-  const shipment = shipments.find((s) => s.id === resolvedParams.id)
+  const shipment = shipments.find((s) => s.id === id)
 
   if (!shipment) {
     notFound()

@@ -15,16 +15,18 @@ export interface User {
 export interface Hub {
   id: string
   name: string
-  code: string
+  code?: string
   address: string
-  city: string
-  state: string
-  pincode: string
+  city?: string
+  state?: string
+  pincode?: string
   capacity: number
-  currentLoad: number
-  manager: string
-  phone: string
-  coordinates: { lat: number; lng: number }
+  current_load?: number // Backend field name
+  currentLoad: number // Frontend field name for compatibility
+  manager_name?: string // Backend field name  
+  manager?: string // Frontend field name for compatibility
+  phone?: string
+  coordinates?: { lat: number; lng: number }
   status: "active" | "inactive" | "maintenance"
 }
 
@@ -36,6 +38,7 @@ export interface Shipment {
     phone: string
     address: string
     city: string
+    state: string
     pincode: string
   }
   receiver: {
@@ -43,6 +46,7 @@ export interface Shipment {
     phone: string
     address: string
     city: string
+    state: string
     pincode: string
   }
   package: {
@@ -75,13 +79,17 @@ export interface Shipment {
 export interface DeliveryRoute {
   id: string
   routeName: string
+  name: string // Added for compatibility with routes page
   assignedTo: string
   shipments: string[]
   status: "pending" | "in-progress" | "completed"
   startTime: string
   estimatedEndTime: string
+  estimatedTime: string // Added for compatibility with routes page
   actualEndTime?: string
   distance: number
+  totalStops: number // Added for compatibility with routes page
+  completedStops: number // Added for compatibility with routes page
   stops: {
     shipmentId: string
     address: string
@@ -150,8 +158,10 @@ export const hubs: Hub[] = [
     state: "Maharashtra",
     pincode: "400069",
     capacity: 5000,
+    current_load: 3200,
     currentLoad: 3200,
     manager: "Rajesh Kumar",
+    manager_name: "Rajesh Kumar",
     phone: "+91 22 1234 5678",
     coordinates: { lat: 19.1136, lng: 72.8697 },
     status: "active",
@@ -165,8 +175,10 @@ export const hubs: Hub[] = [
     state: "Delhi",
     pincode: "110044",
     capacity: 4500,
+    current_load: 2800,
     currentLoad: 2800,
     manager: "Priya Sharma",
+    manager_name: "Priya Sharma",
     phone: "+91 11 2345 6789",
     coordinates: { lat: 28.7041, lng: 77.1025 },
     status: "active",
@@ -180,8 +192,10 @@ export const hubs: Hub[] = [
     state: "Karnataka",
     pincode: "560066",
     capacity: 3500,
+    current_load: 2100,
     currentLoad: 2100,
     manager: "Suresh Iyer",
+    manager_name: "Suresh Iyer",
     phone: "+91 80 3456 7890",
     coordinates: { lat: 12.9716, lng: 77.5946 },
     status: "active",
@@ -195,8 +209,10 @@ export const hubs: Hub[] = [
     state: "Maharashtra",
     pincode: "411057",
     capacity: 2500,
+    current_load: 1500,
     currentLoad: 1500,
     manager: "Meera Joshi",
+    manager_name: "Meera Joshi",
     phone: "+91 20 4567 8901",
     coordinates: { lat: 18.5204, lng: 73.8567 },
     status: "maintenance",
@@ -213,6 +229,7 @@ export const shipments: Shipment[] = [
       phone: "+91 98765 11111",
       address: "123 Business Park, Andheri",
       city: "Mumbai",
+      state: "Maharashtra",
       pincode: "400058",
     },
     receiver: {
@@ -220,6 +237,7 @@ export const shipments: Shipment[] = [
       phone: "+91 98765 22222",
       address: "456 Residential Complex, Sector 21",
       city: "New Delhi",
+      state: "Delhi",
       pincode: "110021",
     },
     package: {
@@ -265,6 +283,7 @@ export const shipments: Shipment[] = [
       phone: "+91 98765 33333",
       address: "789 Mall Road",
       city: "Bangalore",
+      state: "Karnataka",
       pincode: "560001",
     },
     receiver: {
@@ -272,6 +291,7 @@ export const shipments: Shipment[] = [
       phone: "+91 98765 44444",
       address: "321 Lake View Apartments",
       city: "Mumbai",
+      state: "Maharashtra",
       pincode: "400050",
     },
     package: {
@@ -319,6 +339,7 @@ export const shipments: Shipment[] = [
       phone: "+91 98765 55555",
       address: "555 Health Street",
       city: "Pune",
+      state: "Maharashtra",
       pincode: "411001",
     },
     receiver: {
@@ -326,6 +347,7 @@ export const shipments: Shipment[] = [
       phone: "+91 98765 66666",
       address: "777 Hospital Road",
       city: "Mumbai",
+      state: "Maharashtra",
       pincode: "400012",
     },
     package: {
@@ -379,6 +401,7 @@ export const shipments: Shipment[] = [
       phone: "+91 98765 77777",
       address: "999 Reading Lane",
       city: "Delhi",
+      state: "Delhi",
       pincode: "110001",
     },
     receiver: {
@@ -386,6 +409,7 @@ export const shipments: Shipment[] = [
       phone: "+91 98765 88888",
       address: "111 Student Housing",
       city: "Bangalore",
+      state: "Karnataka",
       pincode: "560034",
     },
     package: {
@@ -413,6 +437,7 @@ export const shipments: Shipment[] = [
       phone: "+91 98765 99999",
       address: "222 Tech Plaza",
       city: "Mumbai",
+      state: "Maharashtra",
       pincode: "400070",
     },
     receiver: {
@@ -420,6 +445,7 @@ export const shipments: Shipment[] = [
       phone: "+91 98765 00000",
       address: "333 Green Park",
       city: "Delhi",
+      state: "Delhi",
       pincode: "110016",
     },
     package: {
@@ -453,12 +479,16 @@ export const deliveryRoutes: DeliveryRoute[] = [
   {
     id: "RT001",
     routeName: "Mumbai Zone A - Morning",
+    name: "Mumbai Zone A - Morning",
     assignedTo: "U004",
     shipments: ["SHP002"],
     status: "in-progress",
     startTime: "2024-01-16T09:00:00Z",
     estimatedEndTime: "2024-01-16T14:00:00Z",
+    estimatedTime: "5 hours",
     distance: 25.5,
+    totalStops: 3,
+    completedStops: 1,
     stops: [
       {
         shipmentId: "SHP002",
@@ -472,13 +502,17 @@ export const deliveryRoutes: DeliveryRoute[] = [
   {
     id: "RT002",
     routeName: "Mumbai Zone B - Afternoon",
+    name: "Mumbai Zone B - Afternoon",
     assignedTo: "U005",
     shipments: ["SHP003"],
     status: "completed",
     startTime: "2024-01-14T08:00:00Z",
     estimatedEndTime: "2024-01-14T12:00:00Z",
+    estimatedTime: "4 hours",
     actualEndTime: "2024-01-14T11:45:00Z",
     distance: 18.2,
+    totalStops: 2,
+    completedStops: 2,
     stops: [
       {
         shipmentId: "SHP003",

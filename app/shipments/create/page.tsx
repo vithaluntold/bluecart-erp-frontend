@@ -13,6 +13,7 @@ import { ArrowLeft, Package } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
+import { shipmentStore } from "@/lib/shipment-store"
 
 export default function NewShipmentPage() {
   const router = useRouter()
@@ -65,25 +66,14 @@ export default function NewShipmentPage() {
           width: parseFloat(formData.packageWidth) || 0,
           height: parseFloat(formData.packageHeight) || 0,
         },
-        serviceType: formData.priority || 'standard',
+        serviceType: (formData.priority || 'standard') as 'standard' | 'express' | 'overnight',
+        status: 'pending' as const,
         cost: parseFloat(formData.cost) || 0,
       }
 
-      console.log("📦 Sending shipment data to API:", shipmentData)
+      console.log("📦 Sending shipment data to FastAPI backend:", shipmentData)
 
-      const response = await fetch('/api/shipments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(shipmentData),
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const createdShipment = await response.json()
+      const createdShipment = await shipmentStore.create(shipmentData)
       console.log("✅ Shipment created successfully:", createdShipment)
 
       toast({

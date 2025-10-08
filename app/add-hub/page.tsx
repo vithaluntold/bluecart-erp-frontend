@@ -9,12 +9,16 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Building2, ArrowLeft } from "lucide-react"
+import { Building2, ArrowLeft, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useToast } from "@/hooks/use-toast"
+import { apiClient } from "@/lib/api-client"
 
 export default function CreateHubPage() {
   const router = useRouter()
+  const { toast } = useToast()
+  const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
     code: "",
@@ -28,11 +32,59 @@ export default function CreateHubPage() {
     status: "active",
   })
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // In a real app, this would send data to the backend
-    console.log("Creating new hub:", formData)
-    router.push("/hubs")
+    setLoading(true)
+    
+    try {
+      // Validate capacity
+      const capacity = parseInt(formData.capacity) || 0;
+      if (capacity <= 0) {
+        toast({
+          title: "Validation Error",
+          description: "Capacity must be greater than 0.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Prepare data for API
+      const hubData = {
+        name: formData.name,
+        code: formData.code,
+        address: formData.address,
+        city: formData.city,
+        state: formData.state,
+        pincode: formData.pincode,
+        phone: formData.phone,
+        manager: formData.manager,
+        capacity: capacity,
+        status: formData.status,
+      }
+
+      console.log("Creating new hub:", hubData)
+      
+      // Call API to create hub
+      const response = await apiClient.createHub(hubData) as any
+      
+      toast({
+        title: "Success!",
+        description: `Hub "${response.name}" has been created successfully.`,
+      })
+      
+      // Redirect to hubs page
+      router.push("/hubs")
+      
+    } catch (error) {
+      console.error("Error creating hub:", error)
+      toast({
+        title: "Error",
+        description: "Failed to create hub. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleChange = (field: string, value: string) => {
@@ -158,6 +210,7 @@ export default function CreateHubPage() {
                 <Input
                   id="capacity"
                   type="number"
+                  min="1"
                   placeholder="e.g., 5000"
                   value={formData.capacity}
                   onChange={(e) => handleChange("capacity", e.target.value)}
@@ -181,11 +234,20 @@ export default function CreateHubPage() {
             </div>
 
             <div className="flex gap-3 pt-4">
-              <Button type="submit" className="flex-1">
-                <Building2 className="mr-2 h-4 w-4" />
-                Create Hub
+              <Button type="submit" className="flex-1" disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating Hub...
+                  </>
+                ) : (
+                  <>
+                    <Building2 className="mr-2 h-4 w-4" />
+                    Create Hub
+                  </>
+                )}
               </Button>
-              <Button type="button" variant="outline" className="flex-1 bg-transparent" asChild>
+              <Button type="button" variant="outline" className="flex-1 bg-transparent" asChild disabled={loading}>
                 <Link href="/hubs">Cancel</Link>
               </Button>
             </div>

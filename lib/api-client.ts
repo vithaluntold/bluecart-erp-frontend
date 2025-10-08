@@ -1,6 +1,6 @@
 // API Configuration for connecting to FastAPI backend
 export const API_CONFIG = {
-  // FastAPI Backend URL
+  // FastAPI Backend URL - Will be set via environment variable in production
   BASE_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
   
   // API Endpoints
@@ -9,12 +9,24 @@ export const API_CONFIG = {
     health: '/health',
     
     // Shipments (FastAPI backend endpoints)
-    shipments: '/shipments',
-    shipment: (id: string) => `/shipments/${id}`,
-    shipmentEvents: (id: string) => `/shipments/${id}/events`,
+    shipments: '/api/shipments',
+    shipment: (id: string) => `/api/shipments/${id}`,
+    shipmentEvents: (id: string) => `/api/shipments/${id}/events`,
+    
+    // Hubs (FastAPI backend endpoints)
+    hubs: '/api/hubs',
+    hub: (id: string) => `/api/hubs/${id}`,
     
     // Analytics
-    analytics: '/analytics/dashboard',
+    analytics: '/api/analytics/dashboard',
+    
+    // Users
+    users: '/api/users',
+    user: (id: string) => `/api/users/${id}`,
+    
+    // Routes
+    routes: '/api/routes',
+    route: (id: string) => `/api/routes/${id}`,
   },
   
   // Request headers
@@ -116,9 +128,126 @@ export class ApiClient {
     })
   }
   
+  // Hub operations
+  async createHub(hubData: any) {
+    console.log('📋 Creating hub with data:', hubData)
+    return this.request(API_CONFIG.endpoints.hubs, {
+      method: 'POST',
+      body: JSON.stringify(hubData),
+    })
+  }
+  
+  async getHubs(params?: { skip?: number; limit?: number }) {
+    console.log('📋 Fetching all hubs from FastAPI backend...')
+    const queryParams = new URLSearchParams()
+    if (params?.skip) queryParams.append('skip', params.skip.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    
+    const endpoint = `${API_CONFIG.endpoints.hubs}${queryParams.toString() ? `?${queryParams}` : ''}`
+    return this.request(endpoint)
+  }
+  
+  async getHub(id: string) {
+    console.log(`📋 Fetching hub ${id} from FastAPI backend...`)
+    return this.request(API_CONFIG.endpoints.hub(id))
+  }
+  
+  async updateHub(id: string, updates: any) {
+    console.log(`📋 Updating hub ${id} with:`, updates)
+    return this.request(API_CONFIG.endpoints.hub(id), {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    })
+  }
+  
+  async deleteHub(id: string) {
+    console.log(`📋 Deleting hub ${id}`)
+    return this.request(API_CONFIG.endpoints.hub(id), {
+      method: 'DELETE',
+    })
+  }
+
   // Analytics
   async getDashboardAnalytics() {
     return this.request(API_CONFIG.endpoints.analytics)
+  }
+
+  // User operations
+  async createUser(userData: any) {
+    console.log('👤 Creating user with data:', userData)
+    return this.request(API_CONFIG.endpoints.users, {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    })
+  }
+
+  async getUsers(params?: { skip?: number; limit?: number }) {
+    console.log('👤 Fetching all users from FastAPI backend...')
+    const queryParams = new URLSearchParams()
+    if (params?.skip) queryParams.append('skip', params.skip.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    
+    const endpoint = `${API_CONFIG.endpoints.users}${queryParams.toString() ? `?${queryParams}` : ''}`
+    return this.request(endpoint)
+  }
+
+  async getUser(id: string) {
+    console.log(`👤 Fetching user ${id} from FastAPI backend...`)
+    return this.request(API_CONFIG.endpoints.user(id))
+  }
+
+  async updateUser(id: string, updates: any) {
+    console.log(`👤 Updating user ${id} with:`, updates)
+    return this.request(API_CONFIG.endpoints.user(id), {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    })
+  }
+
+  async deleteUser(id: string) {
+    console.log(`👤 Deleting user ${id}`)
+    return this.request(API_CONFIG.endpoints.user(id), {
+      method: 'DELETE',
+    })
+  }
+
+  // Route operations
+  async createRoute(routeData: any) {
+    console.log('🚛 Creating route with data:', routeData)
+    return this.request(API_CONFIG.endpoints.routes, {
+      method: 'POST',
+      body: JSON.stringify(routeData),
+    })
+  }
+
+  async getRoutes(params?: { skip?: number; limit?: number }) {
+    console.log('🚛 Fetching all routes from FastAPI backend...')
+    const queryParams = new URLSearchParams()
+    if (params?.skip) queryParams.append('skip', params.skip.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    
+    const endpoint = `${API_CONFIG.endpoints.routes}${queryParams.toString() ? `?${queryParams}` : ''}`
+    return this.request(endpoint)
+  }
+
+  async getRoute(id: string) {
+    console.log(`🚛 Fetching route ${id} from FastAPI backend...`)
+    return this.request(API_CONFIG.endpoints.route(id))
+  }
+
+  async updateRoute(id: string, updates: any) {
+    console.log(`🚛 Updating route ${id} with:`, updates)
+    return this.request(API_CONFIG.endpoints.route(id), {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    })
+  }
+
+  async deleteRoute(id: string) {
+    console.log(`🚛 Deleting route ${id}`)
+    return this.request(API_CONFIG.endpoints.route(id), {
+      method: 'DELETE',
+    })
   }
 }
 

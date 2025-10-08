@@ -4,11 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { shipments, hubs, users } from "@/lib/dummy-data"
-import { ArrowLeft, Package, User, MapPin, CreditCard, Clock, Truck } from "lucide-react"
+import { hubs, users } from "@/lib/dummy-data"
+import { ArrowLeft, Package, User, MapPin, CreditCard, Clock, Truck, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Dialog,
   DialogContent,
@@ -19,17 +19,65 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
+import { apiClient } from "@/lib/api-client"
+import { use } from "react"
 
-export default function ShipmentDetailPage({ params }: { params: { id: string } }) {
-  const { id } = params
+export default function ShipmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const { toast } = useToast()
   const [updateStatusDialogOpen, setUpdateStatusDialogOpen] = useState(false)
   const [selectedStatus, setSelectedStatus] = useState("")
+  const [shipment, setShipment] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const shipment = shipments.find((s) => s.id === id)
+  useEffect(() => {
+    const fetchShipment = async () => {
+      try {
+        setLoading(true)
+        console.log(`🔍 Fetching shipment with ID: ${id}`)
+        const shipmentData = await apiClient.getShipment(id)
+        console.log(`✅ Shipment fetched:`, shipmentData)
+        setShipment(shipmentData)
+        setError(null)
+      } catch (err: any) {
+        console.error(`❌ Error fetching shipment:`, err)
+        setError(err.message || 'Failed to load shipment')
+        setShipment(null)
+      } finally {
+        setLoading(false)
+      }
+    }
 
-  if (!shipment) {
-    notFound()
+    fetchShipment()
+  }, [id])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex items-center space-x-2">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <span>Loading shipment details...</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !shipment) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+        <div className="text-center">
+          <Package className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Shipment Not Found</h2>
+          <p className="text-muted-foreground mb-4">
+            {error || "The shipment you're looking for doesn't exist or has been removed."}
+          </p>
+          <Button asChild>
+            <Link href="/shipments">View All Shipments</Link>
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   const getStatusColor = (status: string) => {
@@ -44,8 +92,8 @@ export default function ShipmentDetailPage({ params }: { params: { id: string } 
     return colors[status as keyof typeof colors] || "bg-muted"
   }
 
-  const assignedUser = shipment.assignedTo ? users.find((u) => u.id === shipment.assignedTo) : null
-  const currentHubData = shipment.currentHub ? hubs.find((h) => h.id === shipment.currentHub) : null
+  const assignedUser = null // TODO: Implement user assignment feature
+  const currentHubData = shipment.hubId ? hubs.find((h) => h.id === shipment.hubId) : null
 
   const handlePrintLabel = () => {
     const labelContent = `
@@ -55,20 +103,18 @@ export default function ShipmentDetailPage({ params }: { params: { id: string } 
       Tracking Number: ${shipment.trackingNumber}
       
       FROM:
-      ${shipment.sender.name}
-      ${shipment.sender.address}
-      ${shipment.sender.city} - ${shipment.sender.pincode}
-      Phone: ${shipment.sender.phone}
+      ${shipment.senderName}
+      ${shipment.senderAddress}
+      Phone: ${shipment.senderPhone || 'N/A'}
       
       TO:
-      ${shipment.receiver.name}
-      ${shipment.receiver.address}
-      ${shipment.receiver.city} - ${shipment.receiver.pincode}
-      Phone: ${shipment.receiver.phone}
+      ${shipment.receiverName}
+      ${shipment.receiverAddress}
+      Phone: ${shipment.receiverPhone || 'N/A'}
       
-      Package: ${shipment.package.type}
-      Weight: ${shipment.package.weight}kg
-      Priority: ${shipment.priority}
+      Package: ${shipment.packageDetails}
+      Weight: ${shipment.weight}kg
+      Service: ${shipment.serviceType}
     `
 
     const printWindow = window.open("", "_blank")
@@ -137,6 +183,53 @@ export default function ShipmentDetailPage({ params }: { params: { id: string } 
     }
   }
 
+  const handleCopyTrackingNumber = async (trackingNumber: string) => {
+    try {
+      // Check if clipboard API is available and permissions are granted
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(trackingNumber)
+        toast({
+          title: "Copied!",
+          description: `Tracking number ${trackingNumber} copied to clipboard.`,
+        })
+      } else {
+        // Fallback for older browsers or when clipboard API is blocked
+        const textArea = document.createElement('textarea')
+        textArea.value = trackingNumber
+        textArea.style.position = 'fixed'
+        textArea.style.left = '-999999px'
+        textArea.style.top = '-999999px'
+        document.body.appendChild(textArea)
+        textArea.focus()
+        textArea.select()
+        
+        try {
+          document.execCommand('copy')
+          toast({
+            title: "Copied!",
+            description: `Tracking number ${trackingNumber} copied to clipboard.`,
+          })
+        } catch (err) {
+          console.error('Fallback: Could not copy text', err)
+          toast({
+            title: "Copy Failed",
+            description: `Could not copy tracking number. Please select and copy manually: ${trackingNumber}`,
+            variant: "destructive"
+          })
+        } finally {
+          document.body.removeChild(textArea)
+        }
+      }
+    } catch (err) {
+      console.error('Could not copy text: ', err)
+      toast({
+        title: "Copy Failed",
+        description: `Could not copy tracking number. Please select and copy manually: ${trackingNumber}`,
+        variant: "destructive"
+      })
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -147,7 +240,17 @@ export default function ShipmentDetailPage({ params }: { params: { id: string } 
         </Button>
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-balance">Shipment Details</h1>
-          <p className="text-muted-foreground">{shipment.trackingNumber}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-muted-foreground">{shipment.trackingNumber}</p>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleCopyTrackingNumber(shipment.trackingNumber)}
+              className="h-6 px-2 text-xs"
+            >
+              Copy
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -169,10 +272,10 @@ export default function ShipmentDetailPage({ params }: { params: { id: string } 
                     <User className="h-5 w-5 text-muted-foreground mt-0.5" />
                     <div className="flex-1">
                       <p className="text-sm font-medium">Sender</p>
-                      <p className="text-sm text-foreground">{shipment.sender.name}</p>
-                      <p className="text-xs text-muted-foreground">{shipment.sender.phone}</p>
+                      <p className="text-sm text-foreground">{shipment.senderName}</p>
+                      <p className="text-xs text-muted-foreground">{shipment.senderPhone || 'N/A'}</p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {shipment.sender.address}, {shipment.sender.city} - {shipment.sender.pincode}
+                        {shipment.senderAddress}
                       </p>
                     </div>
                   </div>
@@ -183,10 +286,10 @@ export default function ShipmentDetailPage({ params }: { params: { id: string } 
                     <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
                     <div className="flex-1">
                       <p className="text-sm font-medium">Receiver</p>
-                      <p className="text-sm text-foreground">{shipment.receiver.name}</p>
-                      <p className="text-xs text-muted-foreground">{shipment.receiver.phone}</p>
+                      <p className="text-sm text-foreground">{shipment.receiverName}</p>
+                      <p className="text-xs text-muted-foreground">{shipment.receiverPhone || 'N/A'}</p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {shipment.receiver.address}, {shipment.receiver.city} - {shipment.receiver.pincode}
+                        {shipment.receiverAddress}
                       </p>
                     </div>
                   </div>
@@ -203,17 +306,17 @@ export default function ShipmentDetailPage({ params }: { params: { id: string } 
                       <p className="text-sm font-medium">Package Details</p>
                       <div className="mt-2 space-y-1">
                         <p className="text-xs text-muted-foreground">
-                          <span className="font-medium">Type:</span> {shipment.package.type}
+                          <span className="font-medium">Service:</span> {shipment.serviceType}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          <span className="font-medium">Weight:</span> {shipment.package.weight}kg
+                          <span className="font-medium">Weight:</span> {shipment.weight}kg
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          <span className="font-medium">Dimensions:</span> {shipment.package.dimensions.length} x{" "}
-                          {shipment.package.dimensions.width} x {shipment.package.dimensions.height} cm
+                          <span className="font-medium">Dimensions:</span> {shipment.dimensions.length} x{" "}
+                          {shipment.dimensions.width} x {shipment.dimensions.height} cm
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          <span className="font-medium">Description:</span> {shipment.package.description}
+                          <span className="font-medium">Description:</span> {shipment.packageDetails}
                         </p>
                       </div>
                     </div>
@@ -226,22 +329,12 @@ export default function ShipmentDetailPage({ params }: { params: { id: string } 
                     <div className="flex-1">
                       <p className="text-sm font-medium">Payment Details</p>
                       <div className="mt-2 space-y-1">
-                        <p className="text-xs text-muted-foreground">
-                          <span className="font-medium">Base Price:</span> ₹{shipment.pricing.basePrice}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          <span className="font-medium">Tax:</span> ₹{shipment.pricing.tax}
-                        </p>
-                        <p className="text-sm font-bold mt-2">Total: ₹{shipment.pricing.total}</p>
+                        <p className="text-sm font-bold mt-2">Total: ${shipment.cost}</p>
                         <Badge
                           variant="outline"
-                          className={
-                            shipment.paymentStatus === "paid"
-                              ? "bg-green-500/10 text-green-500 border-green-500/20"
-                              : "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"
-                          }
+                          className="bg-green-500/10 text-green-500 border-green-500/20"
                         >
-                          {shipment.paymentStatus.toUpperCase()}
+                          PAID
                         </Badge>
                       </div>
                     </div>
@@ -258,13 +351,13 @@ export default function ShipmentDetailPage({ params }: { params: { id: string } 
             </CardHeader>
             <CardContent>
               <div className="relative space-y-6">
-                {shipment.timeline.map((event, index) => (
-                  <div key={index} className="flex gap-4">
+                {(shipment.events || []).map((event: any, index: number) => (
+                  <div key={event.id || index} className="flex gap-4">
                     <div className="relative flex flex-col items-center">
                       <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground">
                         <Clock className="h-4 w-4" />
                       </div>
-                      {index < shipment.timeline.length - 1 && (
+                      {index < (shipment.events || []).length - 1 && (
                         <div className="absolute top-8 h-full w-0.5 bg-border" />
                       )}
                     </div>
@@ -288,9 +381,9 @@ export default function ShipmentDetailPage({ params }: { params: { id: string } 
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <p className="text-xs text-muted-foreground">Priority</p>
+                <p className="text-xs text-muted-foreground">Service Type</p>
                 <Badge variant="outline" className="mt-1">
-                  {shipment.priority}
+                  {shipment.serviceType}
                 </Badge>
               </div>
               <Separator />
@@ -301,7 +394,9 @@ export default function ShipmentDetailPage({ params }: { params: { id: string } 
               <Separator />
               <div>
                 <p className="text-xs text-muted-foreground">Estimated Delivery</p>
-                <p className="text-sm font-medium mt-1">{new Date(shipment.estimatedDelivery).toLocaleString()}</p>
+                <p className="text-sm font-medium mt-1">
+                  {shipment.estimatedDelivery ? new Date(shipment.estimatedDelivery).toLocaleString() : 'Not set'}
+                </p>
               </div>
               {currentHubData && (
                 <>
@@ -313,6 +408,7 @@ export default function ShipmentDetailPage({ params }: { params: { id: string } 
                   </div>
                 </>
               )}
+              {/* TODO: Implement user assignment feature
               {assignedUser && (
                 <>
                   <Separator />
@@ -328,6 +424,7 @@ export default function ShipmentDetailPage({ params }: { params: { id: string } 
                   </div>
                 </>
               )}
+              */}
             </CardContent>
           </Card>
 

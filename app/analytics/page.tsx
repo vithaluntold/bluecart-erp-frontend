@@ -1,35 +1,68 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { analyticsData } from "@/lib/dummy-data"
-import { TrendingUp, TrendingDown, Package, Truck, Clock, DollarSign, Activity } from "lucide-react"
+import { TrendingUp, TrendingDown, Package, Truck, Clock, DollarSign, Activity, Loader2, RefreshCw } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { useToast } from "@/hooks/use-toast"
+import { apiClient } from "@/lib/api-client"
 
 export default function AnalyticsPage() {
+  const { toast } = useToast()
+  const [loading, setLoading] = useState(true)
+  const [analyticsApiData, setAnalyticsApiData] = useState<any>(null)
+
+  const fetchAnalytics = async () => {
+    try {
+      setLoading(true)
+      const data = await apiClient.getDashboardAnalytics()
+      setAnalyticsApiData(data)
+      console.log('📊 Analytics data:', data)
+    } catch (error) {
+      console.error('Error fetching analytics:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load analytics data. Using cached data.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchAnalytics()
+  }, [])
+
+  // Use API data if available, fallback to dummy data
+  const currentAnalytics = analyticsApiData || analyticsData
+
   const stats = [
     {
       title: "Total Shipments",
-      value: analyticsData.totalShipments.toLocaleString(),
+      value: (currentAnalytics.totalShipments || analyticsData.totalShipments).toLocaleString(),
       icon: Package,
       trend: "+12.5%",
       trendUp: true,
     },
     {
       title: "Active Shipments",
-      value: analyticsData.activeShipments.toLocaleString(),
+      value: (currentAnalytics.activeShipments || analyticsData.activeShipments).toLocaleString(),
       icon: Truck,
       trend: "+8.2%",
       trendUp: true,
     },
     {
       title: "Delivered Today",
-      value: analyticsData.deliveredToday.toLocaleString(),
+      value: (currentAnalytics.deliveredToday || analyticsData.deliveredToday).toLocaleString(),
       icon: Activity,
       trend: "+15.3%",
       trendUp: true,
     },
     {
       title: "Pending Pickups",
-      value: analyticsData.pendingPickups.toLocaleString(),
+      value: (currentAnalytics.pendingPickups || analyticsData.pendingPickups).toLocaleString(),
       icon: Clock,
       trend: "-5.1%",
       trendUp: false,
@@ -65,9 +98,15 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Analytics Dashboard</h1>
-        <p className="text-muted-foreground">Comprehensive insights into your logistics operations</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Analytics Dashboard</h1>
+          <p className="text-muted-foreground">Comprehensive insights into your logistics operations</p>
+        </div>
+        <Button variant="outline" onClick={fetchAnalytics} disabled={loading}>
+          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+          Refresh Data
+        </Button>
       </div>
 
       {/* Key Metrics */}

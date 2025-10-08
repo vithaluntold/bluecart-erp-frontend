@@ -13,10 +13,14 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { users, hubs, shipments } from "@/lib/dummy-data"
 import { useAuth } from "@/lib/auth-context"
+import { apiClient } from "@/lib/api-client"
+import { useToast } from "@/hooks/use-toast"
 
 export default function AddRoutePage() {
   const router = useRouter()
   const { currentUser } = useAuth()
+  const { toast } = useToast()
+  const [loading, setLoading] = useState(false)
   const [routeName, setRouteName] = useState("")
   const [assignedDriver, setAssignedDriver] = useState("")
   const [startHub, setStartHub] = useState("")
@@ -55,19 +59,53 @@ export default function AddRoutePage() {
     setStops(newStops)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // In a real app, this would send data to the backend
-    console.log("[v0] Creating route:", {
-      routeName,
-      assignedDriver,
-      startHub,
-      estimatedDistance,
-      estimatedTime,
-      selectedShipments,
-      stops,
-    })
-    router.push("/routes")
+    setLoading(true)
+    
+    try {
+      // Validate required fields
+      if (!routeName || !assignedDriver || !startHub) {
+        toast({
+          title: "Validation Error",
+          description: "Please fill in all required fields.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const routeData = {
+        name: routeName,
+        description: `Route with ${selectedShipments.length} shipments`,
+        assigned_to: assignedDriver,
+        hub_id: startHub,
+        shipment_ids: selectedShipments,
+        estimated_distance: estimatedDistance ? parseFloat(estimatedDistance) : undefined,
+        estimated_time: estimatedTime,
+        status: "planned",
+      }
+
+      console.log("[v0] Creating route:", routeData)
+      
+      const response = await apiClient.createRoute(routeData)
+      
+      toast({
+        title: "Route Created Successfully",
+        description: `Route "${routeName}" has been created.`,
+      })
+      
+      router.push("/routes")
+      
+    } catch (error) {
+      console.error("Error creating route:", error)
+      toast({
+        title: "Error",
+        description: "Failed to create route. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Shipment } from "@/lib/shipment-store"
+import { Shipment, shipmentStore } from "@/lib/shipment-store"
 import { Search, Plus, Eye, Download, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useAuth } from "@/lib/auth-context"
@@ -22,19 +22,13 @@ export default function ShipmentsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const { toast } = useToast()
 
-  // Fetch shipments from API
+  // Fetch shipments from FastAPI backend via shipment store
   useEffect(() => {
     const fetchShipments = async () => {
       try {
         setIsLoading(true)
-        console.log('🔄 Fetching shipments from API...')
-        const response = await fetch('/api/shipments')
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`)
-        }
-        
-        const data = await response.json()
+        console.log('🔄 Fetching shipments from FastAPI backend...')
+        const data = await shipmentStore.getAll()
         console.log('✅ Shipments fetched:', data.length)
         setShipments(data)
       } catch (error) {

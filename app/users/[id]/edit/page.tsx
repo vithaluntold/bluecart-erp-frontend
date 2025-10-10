@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, Save } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
-import { users, hubs, type UserRole } from "@/lib/dummy-data"
+import { apiClient } from "@/lib/api-client"
 
 export default function EditUserPage() {
   const router = useRouter()
@@ -20,27 +20,57 @@ export default function EditUserPage() {
   const { toast } = useToast()
   const userId = params.id as string
 
-  const user = users.find((u) => u.id === userId)
-
+  const [user, setUser] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [formData, setFormData] = useState({
-    name: user?.name || "",
-    email: user?.email || "",
-    role: (user?.role || "") as UserRole | "",
-    phone: user?.phone || "",
-    hubId: user?.hubId || "",
+    name: "",
+    email: "",
+    role: "",
+    phone: "",
+    status: "",
   })
 
   useEffect(() => {
-    if (user) {
-      setFormData({
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        phone: user.phone || "",
-        hubId: user.hubId || "",
-      })
+    const fetchUser = async () => {
+      try {
+        setLoading(true)
+        const userData = await apiClient.getUser(userId) as any
+        setUser(userData)
+        setFormData({
+          name: userData.name || "",
+          email: userData.email || "",
+          role: userData.role || "",
+          phone: userData.phone || "",
+          status: userData.status || "active",
+        })
+      } catch (error) {
+        console.error("Failed to fetch user:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load user details.",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
     }
-  }, [user])
+
+    if (userId) {
+      fetchUser()
+    }
+  }, [userId, toast])
+
+  if (loading) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold">Loading...</h2>
+          <p className="text-muted-foreground">Fetching user details...</p>
+        </div>
+      </div>
+    )
+  }
 
   if (!user) {
     return (
@@ -56,18 +86,66 @@ export default function EditUserPage() {
     )
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const validatePhone = (phone: string): boolean => {
+    if (!phone) return true // Phone is optional
+    // Remove all non-digit characters
+    const cleanPhone = phone.replace(/\D/g, '')
+    // Check if it's exactly 10 digits
+    return cleanPhone.length === 10
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("[v0] User edit form submitted:", formData)
+    
+    if (!formData.name || !formData.email || !formData.role) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields.",
+        variant: "destructive",
+      })
+      return
+    }
 
-    toast({
-      title: "User Updated Successfully",
-      description: `${formData.name}'s information has been updated.`,
-    })
+    if (formData.phone && !validatePhone(formData.phone)) {
+      toast({
+        title: "Validation Error",
+        description: "Phone number must be exactly 10 digits.",
+        variant: "destructive",
+      })
+      return
+    }
 
-    setTimeout(() => {
+    try {
+      setSaving(true)
+      console.log("[v0] User edit form submitted:", formData)
+
+      const updateData = {
+        name: formData.name,
+        email: formData.email,
+        role: formData.role,
+        phone: formData.phone || undefined,
+        status: formData.status,
+      }
+
+      await apiClient.updateUser(userId, updateData)
+
+      toast({
+        title: "User Updated Successfully",
+        description: `${formData.name}'s information has been updated.`,
+      })
+
       router.push(`/users/${userId}`)
-    }, 1000)
+      
+    } catch (error) {
+      console.error("Error updating user:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update user. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleChange = (field: string, value: string) => {
@@ -129,10 +207,9 @@ export default function EditUserPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="hub-manager">Hub Manager</SelectItem>
-                    <SelectItem value="delivery-personnel">Delivery Personnel</SelectItem>
-                    <SelectItem value="operations">Operations</SelectItem>
-                    <SelectItem value="customer">Customer</SelectItem>
+                    <SelectItem value="manager">Hub Manager</SelectItem>
+                    <SelectItem value="driver">Driver</SelectItem>
+                    <SelectItem value="operator">Operator</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -142,29 +219,23 @@ export default function EditUserPage() {
                 <Input
                   id="phone"
                   type="tel"
-                  placeholder="+91 98765 43210"
+                  placeholder="9876543210"
                   value={formData.phone}
-                  onChange={(e) => handleChange("phone", e.target.value)}
+                  onChange={(e) => {
+                    // Only allow digits and limit to 10 characters
+                    const value = e.target.value.replace(/\D/g, '').slice(0, 10)
+                    handleChange("phone", value)
+                  }}
+                  maxLength={10}
+                  pattern="[0-9]{10}"
+                  title="Phone number must be exactly 10 digits"
                 />
+                {formData.phone && formData.phone.length > 0 && formData.phone.length !== 10 && (
+                  <p className="text-sm text-red-500">Phone number must be exactly 10 digits</p>
+                )}
               </div>
 
-              {needsHub && (
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="hubId">Assigned Hub *</Label>
-                  <Select value={formData.hubId} onValueChange={(value) => handleChange("hubId", value)} required>
-                    <SelectTrigger id="hubId">
-                      <SelectValue placeholder="Select hub" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {hubs.map((hub) => (
-                        <SelectItem key={hub.id} value={hub.id}>
-                          {hub.name} ({hub.code})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+
             </div>
 
             <div className="flex justify-end gap-4">
@@ -173,9 +244,9 @@ export default function EditUserPage() {
                   Cancel
                 </Button>
               </Link>
-              <Button type="submit">
+              <Button type="submit" disabled={saving}>
                 <Save className="mr-2 h-4 w-4" />
-                Save Changes
+                {saving ? "Saving..." : "Save Changes"}
               </Button>
             </div>
           </form>

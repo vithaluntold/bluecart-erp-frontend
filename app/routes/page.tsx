@@ -1,19 +1,71 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { deliveryRoutes, users, shipments } from "@/lib/dummy-data"
-import { Navigation, User, Package, Clock, MapPin, TrendingUp, Map } from "lucide-react"
+import { Navigation, User, Package, Clock, MapPin, TrendingUp, Map, Search } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Link from "next/link"
 import { useAuth } from "@/lib/auth-context"
+import { apiClient } from "@/lib/api-client"
+import { useToast } from "@/hooks/use-toast"
 
 export default function RoutesPage() {
   const { currentUser } = useAuth()
+  const { toast } = useToast()
+  
+  // Dynamic data states
+  const [routes, setRoutes] = useState<any[]>([])
+  const [users, setUsers] = useState<any[]>([])
+  const [shipments, setShipments] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  
+  // Search and filter states
+  const [searchTerm, setSearchTerm] = useState("")
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [driverFilter, setDriverFilter] = useState("all")
 
-  if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "operations")) {
+  // Fetch data from API
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        
+        // Fetch routes
+        const routesResponse = await apiClient.getRoutes() as any
+        console.log("[Routes] Routes API response:", routesResponse)
+        setRoutes(routesResponse.routes || [])
+        
+        // Fetch users
+        const usersResponse = await apiClient.getUsers() as any
+        console.log("[Routes] Users API response:", usersResponse)
+        setUsers(usersResponse.users || [])
+        
+        // Fetch shipments
+        const shipmentsResponse = await apiClient.getShipments() as any
+        console.log("[Routes] Shipments API response:", shipmentsResponse)
+        setShipments(shipmentsResponse.shipments || [])
+        
+      } catch (error) {
+        console.error("[Routes] Error fetching data:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load route data. Please try again.",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [])
+
+  if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "operator")) {
     return (
       <div className="flex h-[calc(100vh-8rem)] items-center justify-center">
         <Card className="w-96">
@@ -28,16 +80,27 @@ export default function RoutesPage() {
 
   const getStatusColor = (status: string) => {
     const colors = {
-      pending: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
+      planned: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
       "in-progress": "bg-blue-500/10 text-blue-500 border-blue-500/20",
       completed: "bg-green-500/10 text-green-500 border-green-500/20",
     }
     return colors[status as keyof typeof colors] || "bg-muted"
   }
 
-  const activeRoutes = deliveryRoutes.filter((r) => r.status === "in-progress")
-  const completedRoutes = deliveryRoutes.filter((r) => r.status === "completed")
-  const totalDistance = deliveryRoutes.reduce((acc, r) => acc + r.distance, 0)
+  // Filter routes based on search and filters
+  const filteredRoutes = routes.filter((route: any) => {
+    const matchesSearch = route.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         route.description?.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesStatus = statusFilter === "all" || route.status === statusFilter
+    const matchesDriver = driverFilter === "all" || route.assigned_to === driverFilter
+    
+    return matchesSearch && matchesStatus && matchesDriver
+  })
+
+  const activeRoutes = routes.filter((r: any) => r.status === "in-progress")
+  const completedRoutes = routes.filter((r: any) => r.status === "completed")
+  const plannedRoutes = routes.filter((r: any) => r.status === "planned")
+  const totalDistance = routes.reduce((acc: number, r: any) => acc + (r.estimated_distance || 0), 0)
 
   return (
     <div className="space-y-6">
@@ -54,6 +117,49 @@ export default function RoutesPage() {
         </Button>
       </div>
 
+      {/* Search and Filters */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search routes by name or description..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="planned">Planned</SelectItem>
+                  <SelectItem value="in-progress">In Progress</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={driverFilter} onValueChange={setDriverFilter}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Driver" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Drivers</SelectItem>
+                  {users.filter((u) => u.role === "delivery-personnel").map((driver) => (
+                    <SelectItem key={driver.id} value={driver.id}>
+                      {driver.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -61,7 +167,7 @@ export default function RoutesPage() {
             <Navigation className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{deliveryRoutes.length}</div>
+            <div className="text-2xl font-bold">{routes.length}</div>
             <p className="text-xs text-muted-foreground">
               <span className="text-blue-500">{activeRoutes.length} active</span>
             </p>
@@ -116,10 +222,12 @@ export default function RoutesPage() {
 
         <TabsContent value="list" className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-2">
-            {deliveryRoutes.map((route) => {
-              const assignedUser = users.find((u) => u.id === route.assignedTo)
-              const routeShipments = shipments.filter((s) => s.assignedTo === route.assignedTo)
-              const completionPercentage = (route.completedStops / route.totalStops) * 100
+            {filteredRoutes.map((route: any) => {
+              const assignedUser = users.find((u) => u.id === route.assigned_to)
+              const routeShipments = shipments.filter((s) => route.shipment_ids.includes(s.id))
+              const totalStops = routeShipments.length || 1
+              const completedStops = route.status === "completed" ? totalStops : route.status === "in-progress" ? Math.floor(totalStops / 2) : 0
+              const completionPercentage = (completedStops / totalStops) * 100
 
               return (
                 <Card key={route.id}>
@@ -146,24 +254,24 @@ export default function RoutesPage() {
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Route Progress</span>
                         <span className="font-medium">
-                          {route.completedStops} / {route.totalStops} stops
+                          {completedStops} / {totalStops} stops
                         </span>
                       </div>
                       <Progress value={completionPercentage} className="h-2" />
                       <div className="flex justify-between text-xs text-muted-foreground">
                         <span>{completionPercentage.toFixed(0)}% complete</span>
-                        <span>{route.totalStops - route.completedStops} remaining</span>
+                        <span>{totalStops - completedStops} remaining</span>
                       </div>
                     </div>
 
                     <div className="grid gap-3 pt-2">
                       <div className="flex items-center gap-2 text-sm">
                         <MapPin className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">Distance: {route.distance}km</span>
+                        <span className="text-muted-foreground">Distance: {route.estimated_distance || 0}km</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
                         <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">Est. Time: {route.estimatedTime}</span>
+                        <span className="text-muted-foreground">Est. Time: {route.estimated_time || 'N/A'}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
                         <Package className="h-4 w-4 text-muted-foreground" />
@@ -212,21 +320,24 @@ export default function RoutesPage() {
 
                 {/* Route visualization */}
                 <div className="relative h-full">
-                  {deliveryRoutes.map((route, index) => {
-                    const assignedUser = users.find((u) => u.id === route.assignedTo)
-                    const completionPercentage = (route.completedStops / route.totalStops) * 100
+                  {filteredRoutes.map((route: any, index: number) => {
+                    const assignedUser = users.find((u) => u.id === route.assigned_to)
+                    const routeShipments = shipments.filter((s) => route.shipment_ids.includes(s.id))
+                    const totalStops = routeShipments.length || 1
+                    const completedStops = route.status === "completed" ? totalStops : route.status === "in-progress" ? Math.floor(totalStops / 2) : 0
+                    const completionPercentage = (completedStops / totalStops) * 100
 
                     // Position routes in different areas of the map
-                    const positions = [
-                      { top: "15%", left: "20%" },
-                      { top: "45%", left: "65%" },
-                      { top: "70%", left: "30%" },
-                      { top: "25%", left: "75%" },
+                    const positionClasses = [
+                      "top-[15%] left-[20%]",
+                      "top-[45%] left-[65%]",
+                      "top-[70%] left-[30%]", 
+                      "top-[25%] left-[75%]",
                     ]
-                    const position = positions[index % positions.length]
+                    const positionClass = positionClasses[index % positionClasses.length]
 
                     return (
-                      <div key={route.id} className="absolute" style={position}>
+                      <div key={route.id} className={`absolute ${positionClass}`}>
                         <Link href={`/routes/${route.id}`}>
                           <div className="group cursor-pointer">
                             {/* Route marker */}
@@ -259,9 +370,9 @@ export default function RoutesPage() {
                                   </div>
                                   <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                                     <MapPin className="h-3 w-3" />
-                                    <span>{route.distance}km</span>
+                                    <span>{route.estimated_distance || 0}km</span>
                                     <Clock className="h-3 w-3 ml-1" />
-                                    <span>{route.estimatedTime}</span>
+                                    <span>{route.estimated_time || 'N/A'}</span>
                                   </div>
                                 </div>
                               </div>
@@ -322,9 +433,12 @@ export default function RoutesPage() {
 
           {/* Route list below map */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {deliveryRoutes.map((route) => {
-              const assignedUser = users.find((u) => u.id === route.assignedTo)
-              const completionPercentage = (route.completedStops / route.totalStops) * 100
+            {filteredRoutes.map((route: any) => {
+              const assignedUser = users.find((u) => u.id === route.assigned_to)
+              const routeShipments = shipments.filter((s) => route.shipment_ids.includes(s.id))
+              const totalStops = routeShipments.length || 1
+              const completedStops = route.status === "completed" ? totalStops : route.status === "in-progress" ? Math.floor(totalStops / 2) : 0
+              const completionPercentage = (completedStops / totalStops) * 100
 
               return (
                 <Card key={route.id} className="hover:border-primary/50 transition-colors">
@@ -348,8 +462,8 @@ export default function RoutesPage() {
                       <Progress value={completionPercentage} className="h-1.5" />
                     </div>
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>{route.distance}km</span>
-                      <span>{route.estimatedTime}</span>
+                      <span>{route.estimated_distance || 0}km</span>
+                      <span>{route.estimated_time || 'N/A'}</span>
                     </div>
                     <Button variant="outline" size="sm" className="w-full bg-transparent" asChild>
                       <Link href={`/routes/${route.id}`}>View Details</Link>

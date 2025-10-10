@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { shipments } from "@/lib/dummy-data"
+import { apiClient } from "@/lib/api-client"
 import { Search, Package, MapPin, Clock, CheckCircle, Truck, Phone, User } from "lucide-react"
 import {
   Dialog,
@@ -24,23 +24,58 @@ import { useToast } from "@/hooks/use-toast"
 
 export default function TrackPage() {
   const [trackingNumber, setTrackingNumber] = useState("")
-  const [searchedShipment, setSearchedShipment] = useState<(typeof shipments)[0] | null>(null)
+  const [searchedShipment, setSearchedShipment] = useState<any>(null)
   const [notFound, setNotFound] = useState(false)
   const [issueDescription, setIssueDescription] = useState("")
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false)
   const [isContactDialogOpen, setIsContactDialogOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [loading, setLoading] = useState(false)
   const { toast } = useToast()
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
-    const shipment = shipments.find((s) => s.trackingNumber.toLowerCase() === trackingNumber.toLowerCase())
-    if (shipment) {
-      setSearchedShipment(shipment)
-      setNotFound(false)
-    } else {
-      setSearchedShipment(null)
+    if (!trackingNumber.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a tracking number.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setLoading(true)
+    setNotFound(false)
+    setSearchedShipment(null)
+    
+    try {
+      // First, try to get all shipments and find the one with matching tracking number
+      const response = await apiClient.getShipments() as any
+      const shipments = response.shipments || []
+      
+      const shipment = shipments.find((s: any) => 
+        s.trackingNumber && s.trackingNumber.toLowerCase() === trackingNumber.toLowerCase()
+      )
+      
+      if (shipment) {
+        console.log("✅ Found shipment:", shipment)
+        setSearchedShipment(shipment)
+        setNotFound(false)
+      } else {
+        console.log("❌ Shipment not found for tracking number:", trackingNumber)
+        setSearchedShipment(null)
+        setNotFound(true)
+      }
+    } catch (error) {
+      console.error("Error searching for shipment:", error)
+      toast({
+        title: "Search Error",
+        description: "Failed to search for shipment. Please try again.",
+        variant: "destructive",
+      })
       setNotFound(true)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -135,7 +170,16 @@ export default function TrackPage() {
                 required
               />
             </div>
-            <Button type="submit">Track</Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Searching...
+                </>
+              ) : (
+                "Track"
+              )}
+            </Button>
           </form>
         </CardContent>
       </Card>
@@ -176,9 +220,9 @@ export default function TrackPage() {
                     <User className="h-5 w-5 text-muted-foreground mt-0.5" />
                     <div>
                       <p className="text-sm font-medium">From</p>
-                      <p className="text-sm text-foreground mt-1">{searchedShipment.sender.name}</p>
+                      <p className="text-sm text-foreground mt-1">{searchedShipment.senderName}</p>
                       <p className="text-xs text-muted-foreground">
-                        {searchedShipment.sender.city}, {searchedShipment.sender.state}
+                        {searchedShipment.senderAddress}
                       </p>
                     </div>
                   </div>
@@ -189,9 +233,9 @@ export default function TrackPage() {
                     <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
                     <div>
                       <p className="text-sm font-medium">To</p>
-                      <p className="text-sm text-foreground mt-1">{searchedShipment.receiver.name}</p>
+                      <p className="text-sm text-foreground mt-1">{searchedShipment.receiverName}</p>
                       <p className="text-xs text-muted-foreground">
-                        {searchedShipment.receiver.city}, {searchedShipment.receiver.state}
+                        {searchedShipment.receiverAddress}
                       </p>
                     </div>
                   </div>
@@ -202,12 +246,12 @@ export default function TrackPage() {
 
               <div className="grid gap-4 md:grid-cols-3">
                 <div>
-                  <p className="text-xs text-muted-foreground">Package Type</p>
-                  <p className="text-sm font-medium mt-1">{searchedShipment.package.type}</p>
+                  <p className="text-xs text-muted-foreground">Package Details</p>
+                  <p className="text-sm font-medium mt-1">{searchedShipment.packageDetails}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Weight</p>
-                  <p className="text-sm font-medium mt-1">{searchedShipment.package.weight}kg</p>
+                  <p className="text-sm font-medium mt-1">{searchedShipment.weight}kg</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Estimated Delivery</p>
@@ -226,21 +270,21 @@ export default function TrackPage() {
             </CardHeader>
             <CardContent>
               <div className="relative space-y-6">
-                {searchedShipment.timeline.map((event, index) => {
+                {(searchedShipment.events || []).map((event: any, index: number) => {
                   const StatusIcon = getStatusIcon(event.status)
                   return (
-                    <div key={index} className="flex gap-4">
+                    <div key={event.id || index} className="flex gap-4">
                       <div className="relative flex flex-col items-center">
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground">
                           <StatusIcon className="h-5 w-5" />
                         </div>
-                        {index < searchedShipment.timeline.length - 1 && (
+                        {index < (searchedShipment.events || []).length - 1 && (
                           <div className="absolute top-10 h-full w-0.5 bg-border" />
                         )}
                       </div>
                       <div className="flex-1 pb-6">
                         <p className="text-sm font-medium">{event.status.replace("-", " ")}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{event.location}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{event.location || 'Unknown Location'}</p>
                         <p className="text-xs text-muted-foreground mt-1">{event.description}</p>
                         <p className="text-xs text-muted-foreground mt-1">
                           {new Date(event.timestamp).toLocaleString()}
@@ -249,6 +293,12 @@ export default function TrackPage() {
                     </div>
                   )
                 })}
+                {(!searchedShipment.events || searchedShipment.events.length === 0) && (
+                  <div className="text-center py-8">
+                    <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground">No tracking events available yet.</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

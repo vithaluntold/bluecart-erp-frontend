@@ -13,7 +13,14 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<User | null>(users[0]) // Default to admin
+  // Use a user ID that exists in the backend - admin user from test data
+  const [currentUser, setCurrentUser] = useState<User | null>({
+    id: "USR000", // This matches the admin user ID in backend
+    name: "Admin User", 
+    email: "admin@bluecart.com",
+    role: "admin",
+    phone: "+91-98765-43210"
+  })
 
   const switchUser = (userId: string) => {
     const user = users.find((u) => u.id === userId)

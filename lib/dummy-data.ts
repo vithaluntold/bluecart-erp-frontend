@@ -1,6 +1,6 @@
 // Dummy data for the ERP system
 
-export type UserRole = "admin" | "hub-manager" | "delivery-personnel" | "customer" | "operations"
+export type UserRole = "admin" | "manager" | "driver" | "operator"
 
 export interface User {
   id: string
@@ -102,49 +102,54 @@ export interface DeliveryRoute {
 
 // Dummy Users
 export const users: User[] = [
-  { id: "U001", name: "Admin User", email: "admin@bluecart.com", role: "admin", avatar: "/admin-interface.png" },
   {
-    id: "U002",
-    name: "Rajesh Kumar",
-    email: "rajesh@bluecart.com",
-    role: "hub-manager",
-    hubId: "HUB001",
+    id: "U001",
+    name: "Admin User",
+    email: "admin@bluecart.com",
+    role: "admin",
+    avatar: "/placeholder-user.jpg",
     phone: "+91 98765 43210",
   },
   {
-    id: "U003",
-    name: "Priya Sharma",
-    email: "priya@bluecart.com",
-    role: "hub-manager",
-    hubId: "HUB002",
+    id: "U002",
+    name: "Hub Manager North",
+    email: "hub.north@bluecart.com",
+    role: "manager",
+    hubId: "HUB001",
     phone: "+91 98765 43211",
   },
   {
-    id: "U004",
-    name: "Amit Patel",
-    email: "amit@bluecart.com",
-    role: "delivery-personnel",
-    hubId: "HUB001",
+    id: "U003",
+    name: "Hub Manager South",
+    email: "hub.south@bluecart.com",
+    role: "manager",
+    hubId: "HUB002",
     phone: "+91 98765 43212",
   },
   {
-    id: "U005",
-    name: "Sneha Reddy",
-    email: "sneha@bluecart.com",
-    role: "delivery-personnel",
+    id: "U004",
+    name: "Delivery Person 1",
+    email: "delivery1@bluecart.com",
+    role: "driver",
     hubId: "HUB001",
     phone: "+91 98765 43213",
   },
   {
-    id: "U006",
-    name: "Vikram Singh",
-    email: "vikram@bluecart.com",
-    role: "delivery-personnel",
-    hubId: "HUB002",
+    id: "U005",
+    name: "Delivery Person 2",
+    email: "delivery2@bluecart.com",
+    role: "driver",
+    hubId: "HUB001",
     phone: "+91 98765 43214",
   },
-  { id: "U007", name: "John Doe", email: "john@example.com", role: "customer", phone: "+91 98765 43215" },
-  { id: "U008", name: "Operations Manager", email: "ops@bluecart.com", role: "operations" },
+  {
+    id: "U006",
+    name: "Delivery Person 3",
+    email: "delivery3@bluecart.com",
+    role: "driver",
+    hubId: "HUB002",
+  },
+  { id: "U007", name: "Operations Manager", email: "ops@bluecart.com", role: "operator" },
 ]
 
 // Dummy Hubs

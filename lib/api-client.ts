@@ -78,6 +78,12 @@ export class ApiClient {
       return data
     } catch (error) {
       console.error(`API request failed for ${endpoint}:`, error)
+      
+      // Check if it's a network error
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        throw new Error(`Backend server not available. Please ensure the FastAPI server is running on ${this.baseUrl}`)
+      }
+      
       throw error
     }
   }
@@ -101,7 +107,9 @@ export class ApiClient {
     if (params?.limit) queryParams.append('limit', params.limit.toString())
     
     const endpoint = `${API_CONFIG.endpoints.shipments}${queryParams.toString() ? `?${queryParams}` : ''}`
-    return this.request(endpoint)
+    const response = await this.request(endpoint) as any
+    // Extract the shipments array from the paginated response
+    return response.shipments || response
   }
   
   async getShipment(id: string) {
@@ -144,7 +152,9 @@ export class ApiClient {
     if (params?.limit) queryParams.append('limit', params.limit.toString())
     
     const endpoint = `${API_CONFIG.endpoints.hubs}${queryParams.toString() ? `?${queryParams}` : ''}`
-    return this.request(endpoint)
+    const response = await this.request(endpoint) as any
+    // Extract the hubs array from the paginated response
+    return response.hubs || response
   }
   
   async getHub(id: string) {
@@ -182,13 +192,15 @@ export class ApiClient {
   }
 
   async getUsers(params?: { skip?: number; limit?: number }) {
-    console.log('👤 Fetching all users from FastAPI backend...')
+    console.log('� Fetching all users from FastAPI backend...')
     const queryParams = new URLSearchParams()
     if (params?.skip) queryParams.append('skip', params.skip.toString())
     if (params?.limit) queryParams.append('limit', params.limit.toString())
     
     const endpoint = `${API_CONFIG.endpoints.users}${queryParams.toString() ? `?${queryParams}` : ''}`
-    return this.request(endpoint)
+    const response = await this.request(endpoint) as any
+    // Extract the users array from the paginated response  
+    return response.users || response
   }
 
   async getUser(id: string) {
@@ -208,6 +220,65 @@ export class ApiClient {
     console.log(`👤 Deleting user ${id}`)
     return this.request(API_CONFIG.endpoints.user(id), {
       method: 'DELETE',
+    })
+  }
+
+  async updateUserPreferences(id: string, preferences: any) {
+    console.log(`👤 Updating preferences for user ${id}:`, preferences)
+    return this.request(`/api/users/${id}/preferences`, {
+      method: 'PUT',
+      body: JSON.stringify(preferences),
+    })
+  }
+
+  async getUserPreferences(id: string) {
+    console.log(`👤 Getting preferences for user ${id}`)
+    return this.request(`/api/users/${id}/preferences`)
+  }
+
+  async setup2FA(id: string) {
+    console.log(`🔐 Setting up 2FA for user ${id}`)
+    return this.request(`/api/users/${id}/2fa/setup`, {
+      method: 'POST',
+    })
+  }
+
+  async verify2FA(id: string, code: string) {
+    console.log(`🔐 Verifying 2FA for user ${id}`)
+    return this.request(`/api/users/${id}/2fa/verify`, {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    })
+  }
+
+  async get2FAStatus(id: string) {
+    console.log(`🔐 Getting 2FA status for user ${id}`)
+    return this.request(`/api/users/${id}/2fa/status`)
+  }
+
+  // Session management operations
+  async getUserSessions(id: string) {
+    console.log(`🔐 Getting sessions for user ${id}`)
+    return this.request(`/api/users/${id}/sessions`)
+  }
+
+  async revokeSession(userId: string, sessionId: string) {
+    console.log(`🔐 Revoking session ${sessionId} for user ${userId}`)
+    return this.request(`/api/users/${userId}/sessions/${sessionId}/revoke`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+  }
+
+  async revokeAllSessions(id: string) {
+    console.log(`🔐 Revoking all sessions for user ${id}`)
+    return this.request(`/api/users/${id}/sessions/revoke-all`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
     })
   }
 

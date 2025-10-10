@@ -31,10 +31,9 @@ export function Header() {
   const getRoleColor = (role: string) => {
     const colors = {
       admin: "bg-primary text-primary-foreground",
-      "hub-manager": "bg-chart-2 text-white",
-      "delivery-personnel": "bg-chart-3 text-white",
-      customer: "bg-chart-4 text-white",
-      operations: "bg-chart-5 text-white",
+      manager: "bg-chart-2 text-white",
+      driver: "bg-chart-3 text-white",
+      operator: "bg-chart-4 text-white",
     }
     return colors[role as keyof typeof colors] || "bg-muted"
   }

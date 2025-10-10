@@ -1,0 +1,9 @@
+{
+  "/hubs/page": "app/hubs/page.js",
+  "/analytics/page": "app/analytics/page.js",
+  "/settings/page": "app/settings/page.js",
+  "/page": "app/page.js",
+  "/shipments/create/page": "app/shipments/create/page.js",
+  "/shipments/page": "app/shipments/page.js",
+  "/users/page": "app/users/page.js"
+}

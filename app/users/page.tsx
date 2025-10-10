@@ -1,18 +1,46 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { users, type UserRole } from "@/lib/dummy-data"
+import { type UserRole } from "@/lib/dummy-data"
 import { Search, Mail, Phone, Building2, UserPlus, Filter } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Link from "next/link"
+import { apiClient } from "@/lib/api-client"
+import { useToast } from "@/hooks/use-toast"
 
 export default function UsersPage() {
   const [searchQuery, setSearchQuery] = useState("")
-  const [roleFilter, setRoleFilter] = useState<UserRole | "all">("all")
+  const [roleFilter, setRoleFilter] = useState<string>("all")
+  const [users, setUsers] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const { toast } = useToast()
+
+  // Load users from API
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        setLoading(true)
+        const response = await apiClient.getUsers() as any
+        console.log("Users API response:", response)
+        setUsers(response.users || [])
+      } catch (error) {
+        console.error("Failed to load users:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load users. Please try again.",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadUsers()
+  }, [toast])
 
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
@@ -22,28 +50,34 @@ export default function UsersPage() {
     return matchesSearch && matchesRole
   })
 
-  const getRoleBadgeColor = (role: UserRole) => {
+  const getRoleBadgeColor = (role: string) => {
     switch (role) {
       case "admin":
         return "bg-purple-500/10 text-purple-500 border-purple-500/20"
-      case "hub-manager":
+      case "manager":
         return "bg-blue-500/10 text-blue-500 border-blue-500/20"
-      case "delivery-personnel":
+      case "driver":
         return "bg-green-500/10 text-green-500 border-green-500/20"
-      case "operations":
+      case "operator":
         return "bg-orange-500/10 text-orange-500 border-orange-500/20"
-      case "customer":
-        return "bg-gray-500/10 text-gray-500 border-gray-500/20"
       default:
-        return ""
+        return "bg-gray-500/10 text-gray-500 border-gray-500/20"
     }
   }
 
-  const getRoleLabel = (role: UserRole) => {
-    return role
-      .split("-")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ")
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case "admin":
+        return "Admin"
+      case "manager":
+        return "Hub Manager"
+      case "driver":
+        return "Driver"
+      case "operator":
+        return "Operator"
+      default:
+        return role.charAt(0).toUpperCase() + role.slice(1)
+    }
   }
 
   const userStats = [
@@ -107,17 +141,18 @@ export default function UsersPage() {
               <SelectContent>
                 <SelectItem value="all">All Roles</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
-                <SelectItem value="hub-manager">Hub Manager</SelectItem>
-                <SelectItem value="delivery-personnel">Delivery Personnel</SelectItem>
-                <SelectItem value="operations">Operations</SelectItem>
-                <SelectItem value="customer">Customer</SelectItem>
+                <SelectItem value="manager">Hub Manager</SelectItem>
+                <SelectItem value="driver">Driver</SelectItem>
+                <SelectItem value="operator">Operator</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {/* Users List */}
           <div className="space-y-4">
-            {filteredUsers.length === 0 ? (
+            {loading ? (
+              <div className="py-12 text-center text-muted-foreground">Loading users...</div>
+            ) : filteredUsers.length === 0 ? (
               <div className="py-12 text-center text-muted-foreground">No users found matching your criteria</div>
             ) : (
               filteredUsers.map((user) => (
@@ -157,16 +192,16 @@ export default function UsersPage() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Link href={`/users/${user.id}/edit`}>
-                      <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/users/${user.id}/edit`}>
                         Edit
-                      </Button>
-                    </Link>
-                    <Link href={`/users/${user.id}`}>
-                      <Button variant="outline" size="sm">
+                      </Link>
+                    </Button>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/users/${user.id}`}>
                         View Details
-                      </Button>
-                    </Link>
+                      </Link>
+                    </Button>
                   </div>
                 </div>
               ))

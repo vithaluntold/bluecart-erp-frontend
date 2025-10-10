@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { deliveryRoutes, users, shipments } from "@/lib/dummy-data"
+import { useEffect } from "react"
+import { apiClient } from "@/lib/api-client"
+import { useToast } from "@/hooks/use-toast"
 import { ArrowLeft, Navigation, User, Package, MapPin, Clock, Phone, FileText } from "lucide-react"
 import Link from "next/link"
 import { notFound } from "next/navigation"
@@ -24,23 +26,76 @@ import { useRouter } from "next/navigation"
 
 export default function RouteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  const route = deliveryRoutes.find((r) => r.id === id)
   const router = useRouter()
+  const { toast } = useToast()
+
+  // Dynamic data states
+  const [route, setRoute] = useState<any>(null)
+  const [users, setUsers] = useState<any[]>([])
+  const [shipments, setShipments] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
   const [reassignDialogOpen, setReassignDialogOpen] = useState(false)
   const [contactDialogOpen, setContactDialogOpen] = useState(false)
   const [selectedDriver, setSelectedDriver] = useState("")
   const [isOptimizing, setIsOptimizing] = useState(false)
 
+  // Fetch route data
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        
+        // Fetch route details
+        const routeResponse = await apiClient.getRoute(id)
+        setRoute(routeResponse)
+        
+        // Fetch users
+        const usersResponse = await apiClient.getUsers() as any
+        setUsers(usersResponse.users || [])
+        
+        // Fetch shipments
+        const shipmentsResponse = await apiClient.getShipments() as any
+        setShipments(shipmentsResponse.shipments || [])
+        
+      } catch (error) {
+        console.error("Error fetching route data:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load route details.",
+          variant: "destructive",
+        })
+        notFound()
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [id, toast])
+
+  if (loading) {
+    return (
+      <div className="flex h-[calc(100vh-8rem)] items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading route details...</p>
+        </div>
+      </div>
+    )
+  }
+
   if (!route) {
     notFound()
   }
 
-  const assignedUser = users.find((u) => u.id === route.assignedTo)
-  const routeShipments = shipments.filter((s) => s.assignedTo === route.assignedTo)
-  const completionPercentage = (route.completedStops / route.totalStops) * 100
+  const assignedUser = users.find((u: any) => u.id === route.assigned_to)
+  const routeShipments = shipments.filter((s: any) => route.shipment_ids.includes(s.id))
+  const totalStops = routeShipments.length || 1
+  const completedStops = route.status === "completed" ? totalStops : route.status === "in-progress" ? Math.floor(totalStops / 2) : 0
+  const completionPercentage = (completedStops / totalStops) * 100
 
-  const availableDrivers = users.filter((u) => u.role === "delivery-personnel")
+  const availableDrivers = users.filter((u: any) => u.role === "delivery-personnel")
 
   const getStatusColor = (status: string) => {
     const colors = {
@@ -88,11 +143,27 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
     }, 2000)
   }
 
-  const handleReassignDriver = () => {
+  const handleReassignDriver = async () => {
     if (selectedDriver) {
-      alert(`Route reassigned to ${users.find((u) => u.id === selectedDriver)?.name}`)
-      setReassignDialogOpen(false)
-      router.refresh()
+      try {
+        await apiClient.updateRoute(route.id, { assigned_to: selectedDriver })
+        toast({
+          title: "Route Reassigned",
+          description: `Route reassigned to ${users.find((u: any) => u.id === selectedDriver)?.name}`,
+        })
+        setReassignDialogOpen(false)
+        
+        // Refresh route data
+        const updatedRoute = await apiClient.getRoute(id)
+        setRoute(updatedRoute)
+      } catch (error) {
+        console.error("Error reassigning route:", error)
+        toast({
+          title: "Error",
+          description: "Failed to reassign route.",
+          variant: "destructive",
+        })
+      }
     }
   }
 
@@ -101,10 +172,10 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
       routeId: route.id,
       routeName: route.name,
       driver: assignedUser?.name,
-      totalStops: route.totalStops,
-      completedStops: route.completedStops,
-      distance: route.distance,
-      estimatedTime: route.estimatedTime,
+      totalStops: totalStops,
+      completedStops: completedStops,
+      distance: route.estimated_distance,
+      estimatedTime: route.estimated_time,
       shipments: routeShipments.length,
       status: route.status,
       generatedAt: new Date().toISOString(),
@@ -145,8 +216,8 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
             <MapPin className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{route.totalStops}</div>
-            <p className="text-xs text-muted-foreground">{route.completedStops} completed</p>
+            <div className="text-2xl font-bold">{totalStops}</div>
+            <p className="text-xs text-muted-foreground">{completedStops} completed</p>
           </CardContent>
         </Card>
 
@@ -156,7 +227,7 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
             <Navigation className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{route.distance}km</div>
+            <div className="text-2xl font-bold">{route.estimated_distance || 0}km</div>
             <p className="text-xs text-muted-foreground">total route distance</p>
           </CardContent>
         </Card>
@@ -167,7 +238,7 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{route.estimatedTime}</div>
+            <div className="text-2xl font-bold">{route.estimated_time || 'N/A'}</div>
             <p className="text-xs text-muted-foreground">estimated completion</p>
           </CardContent>
         </Card>

@@ -125,12 +125,14 @@ class ShipmentStore {
   async getAll(): Promise<Shipment[]> {
     try {
       console.log('📋 Fetching all shipments from FastAPI backend...')
-      const response = await apiClient.getShipments() as any
-      const shipments = (response.shipments || []).map(transformFromBackendFormat)
+      // Use high limit to get ALL shipments, not just default 100
+      const response = await apiClient.getShipments({ limit: 10000 }) as any
+      const shipments = (response.shipments || response || []).map(transformFromBackendFormat)
       console.log(`✅ Retrieved ${shipments.length} shipments`)
       return shipments
     } catch (error) {
       console.error('❌ Failed to get shipments:', error)
+      console.error('Error details:', error)
       return []
     }
   }

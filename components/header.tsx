@@ -1,11 +1,11 @@
 "use client"
 
 import Link from "next/link"
-import { useAuth } from "@/context/authContext" // Assuming useAuth is declared in authContext
+import { useAuth } from "@/lib/auth-context"
 import { Package } from "lucide-react" // Assuming Package is a component from lucide-react
 
 export function Header() {
-  const { currentUser, setCurrentUser } = useAuth()
+  const { currentUser } = useAuth()
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -24,7 +24,7 @@ export function Header() {
               >
                 Dashboard
               </Link>
-              {(currentUser.role === "admin" || currentUser.role === "operations") && (
+              {(currentUser.role === "admin" || currentUser.role === "operator") && (
                 <>
                   <Link
                     href="/shipments"
@@ -46,7 +46,7 @@ export function Header() {
                   </Link>
                 </>
               )}
-              {currentUser.role === "delivery-personnel" && (
+              {currentUser.role === "driver" && (
                 <Link
                   href="/delivery"
                   className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"

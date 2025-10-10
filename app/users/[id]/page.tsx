@@ -1,45 +1,94 @@
+"use client"
+
+import { useState, useEffect } from "react"
 import { notFound } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { users, hubs, shipments, deliveryRoutes } from "@/lib/dummy-data"
 import { ArrowLeft, Mail, Phone, Building2, Package, MapPin, Edit } from "lucide-react"
 import Link from "next/link"
+import { useParams } from "next/navigation"
+import { apiClient } from "@/lib/api-client"
+import { useToast } from "@/hooks/use-toast"
 
-export default async function UserDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const user = users.find((u) => u.id === id)
+export default function UserDetailPage() {
+  const params = useParams()
+  const { toast } = useToast()
+  const userId = params.id as string
+  
+  const [user, setUser] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [userNotFound, setUserNotFound] = useState(false)
 
-  if (!user) {
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        setLoading(true)
+        const userData = await apiClient.getUser(userId)
+        setUser(userData)
+      } catch (error) {
+        console.error("Failed to fetch user:", error)
+        setUserNotFound(true)
+        toast({
+          title: "Error",
+          description: "Failed to load user details.",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (userId) {
+      fetchUser()
+    }
+  }, [userId, toast])
+
+  if (loading) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold">Loading...</h2>
+          <p className="text-muted-foreground">Fetching user details...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (userNotFound || !user) {
     notFound()
   }
 
-  const userHub = user.hubId ? hubs.find((h) => h.id === user.hubId) : null
-  const userShipments = shipments.filter((s) => s.assignedTo === user.id)
-  const userRoutes = deliveryRoutes.filter((r) => r.assignedTo === user.id)
+  // TODO: Implement hub, shipments, and routes fetching from API if needed
 
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
       case "admin":
         return "bg-purple-500/10 text-purple-500 border-purple-500/20"
-      case "hub-manager":
+      case "manager":
         return "bg-blue-500/10 text-blue-500 border-blue-500/20"
-      case "delivery-personnel":
+      case "driver":
         return "bg-green-500/10 text-green-500 border-green-500/20"
-      case "operations":
+      case "operator":
         return "bg-orange-500/10 text-orange-500 border-orange-500/20"
-      case "customer":
-        return "bg-gray-500/10 text-gray-500 border-gray-500/20"
       default:
-        return ""
+        return "bg-gray-500/10 text-gray-500 border-gray-500/20"
     }
   }
 
   const getRoleLabel = (role: string) => {
-    return role
-      .split("-")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ")
+    switch (role) {
+      case "admin":
+        return "Admin"
+      case "manager":
+        return "Hub Manager"
+      case "driver":
+        return "Driver"
+      case "operator":
+        return "Operator"
+      default:
+        return role.charAt(0).toUpperCase() + role.slice(1)
+    }
   }
 
   return (
@@ -95,157 +144,50 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
                   <span>{user.phone}</span>
                 </div>
               )}
-              {userHub && (
-                <div className="flex items-center gap-3 text-sm">
-                  <Building2 className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <div className="font-medium">{userHub.name}</div>
-                    <div className="text-muted-foreground">
-                      {userHub.city}, {userHub.state}
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Activity Summary */}
+        {/* Account Information */}
         <Card>
           <CardHeader>
-            <CardTitle>Activity Summary</CardTitle>
-            <CardDescription>User performance metrics</CardDescription>
+            <CardTitle>Account Information</CardTitle>
+            <CardDescription>User account status and details</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {user.role === "delivery-personnel" && (
-                <>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Package className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">Active Shipments</span>
-                    </div>
-                    <span className="text-2xl font-bold">{userShipments.length}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">Active Routes</span>
-                    </div>
-                    <span className="text-2xl font-bold">{userRoutes.length}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Package className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">Completed Deliveries</span>
-                    </div>
-                    <span className="text-2xl font-bold">
-                      {userRoutes.filter((r) => r.status === "completed").length}
-                    </span>
-                  </div>
-                </>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">User ID</span>
+                <span className="text-sm font-mono">{user.id}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Role</span>
+                <Badge variant="outline" className={getRoleBadgeColor(user.role)}>
+                  {getRoleLabel(user.role)}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Status</span>
+                <Badge variant={user.status === "active" ? "default" : "secondary"}>
+                  {user.status}
+                </Badge>
+              </div>
+              {user.createdAt && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Created</span>
+                  <span className="text-sm">{new Date(user.createdAt).toLocaleDateString()}</span>
+                </div>
               )}
-              {user.role === "hub-manager" && userHub && (
-                <>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Hub Capacity</span>
-                    <span className="text-2xl font-bold">{userHub.capacity}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Current Load</span>
-                    <span className="text-2xl font-bold">{userHub.currentLoad}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Utilization</span>
-                    <span className="text-2xl font-bold">
-                      {Math.round((userHub.currentLoad / userHub.capacity) * 100)}%
-                    </span>
-                  </div>
-                </>
-              )}
-              {(user.role === "admin" || user.role === "operations" || user.role === "customer") && (
-                <div className="py-8 text-center text-muted-foreground">
-                  No activity metrics available for this role
+              {user.updatedAt && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Last Updated</span>
+                  <span className="text-sm">{new Date(user.updatedAt).toLocaleDateString()}</span>
                 </div>
               )}
             </div>
           </CardContent>
         </Card>
       </div>
-
-      {/* Active Shipments */}
-      {user.role === "delivery-personnel" && userShipments.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Active Shipments</CardTitle>
-            <CardDescription>Currently assigned deliveries</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {userShipments.map((shipment) => (
-                <Link key={shipment.id} href={`/shipments/${shipment.id}`}>
-                  <div className="flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-muted/50">
-                    <div>
-                      <div className="font-semibold">{shipment.trackingNumber}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {shipment.receiver.name} - {shipment.receiver.city}
-                      </div>
-                    </div>
-                    <Badge
-                      variant={
-                        shipment.status === "delivered"
-                          ? "default"
-                          : shipment.status === "out-for-delivery"
-                            ? "secondary"
-                            : "outline"
-                      }
-                    >
-                      {shipment.status}
-                    </Badge>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Active Routes */}
-      {user.role === "delivery-personnel" && userRoutes.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Active Routes</CardTitle>
-            <CardDescription>Currently assigned delivery routes</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {userRoutes.map((route) => (
-                <Link key={route.id} href={`/routes/${route.id}`}>
-                  <div className="flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-muted/50">
-                    <div>
-                      <div className="font-semibold">{route.routeName}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {route.stops.length} stops - {route.distance} km
-                      </div>
-                    </div>
-                    <Badge
-                      variant={
-                        route.status === "completed"
-                          ? "default"
-                          : route.status === "in-progress"
-                            ? "secondary"
-                            : "outline"
-                      }
-                    >
-                      {route.status}
-                    </Badge>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }

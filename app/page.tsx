@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -8,11 +9,49 @@ import { RecentShipments } from "@/components/dashboard/recent-shipments"
 import { HubPerformance } from "@/components/dashboard/hub-performance"
 import { PerformanceMetrics } from "@/components/dashboard/performance-metrics"
 import { RevenueChart } from "@/components/dashboard/revenue-chart"
-import { Package, Building2, Route, Users, Plus } from "lucide-react"
+import { Package, Building2, Route, Users, Plus, RefreshCw, Activity } from "lucide-react"
 import Link from "next/link"
 
 export default function DashboardPage() {
   const { currentUser } = useAuth()
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [autoRefresh, setAutoRefresh] = useState(true)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [mounted, setMounted] = useState(false)
+
+  // Prevent hydration mismatch by ensuring client-side mounting
+  useEffect(() => {
+    setMounted(true)
+    setLastUpdated(new Date())
+  }, [])
+
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    if (!autoRefresh || !mounted) return
+
+    const interval = setInterval(() => {
+      setLastUpdated(new Date())
+      setRefreshKey(prev => prev + 1)
+    }, 30000) // 30 seconds
+
+    return () => clearInterval(interval)
+  }, [autoRefresh, mounted])
+
+  const handleManualRefresh = () => {
+    setLastUpdated(new Date())
+    setRefreshKey(prev => prev + 1)
+  }
+
+  if (!mounted) {
+    return (
+      <div className="space-y-6">
+        <div className="animate-pulse">
+          <div className="h-8 bg-muted rounded w-1/3 mb-2"></div>
+          <div className="h-4 bg-muted rounded w-1/2"></div>
+        </div>
+      </div>
+    )
+  }
 
   if (!currentUser) {
     return (
@@ -33,9 +72,29 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-balance">Admin Dashboard</h1>
-            <p className="text-muted-foreground">Complete overview of your logistics operations</p>
+            <p className="text-muted-foreground">
+              Complete overview of your logistics operations • Live data updates every 30s
+            </p>
           </div>
           <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleManualRefresh}
+              className="gap-2"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setAutoRefresh(!autoRefresh)}
+              className={`gap-2 ${autoRefresh ? 'text-green-600' : 'text-gray-500'}`}
+            >
+              <Activity className="h-4 w-4" />
+              {autoRefresh ? 'Live' : 'Paused'}
+            </Button>
             <Button asChild>
               <Link href="/shipments/create">
                 <Plus className="mr-2 h-4 w-4" />
@@ -43,6 +102,10 @@ export default function DashboardPage() {
               </Link>
             </Button>
           </div>
+        </div>
+
+        <div className="text-xs text-muted-foreground text-right">
+          Last updated: {lastUpdated?.toLocaleTimeString() || 'Loading...'}
         </div>
 
         <Card>
@@ -92,16 +155,16 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <AdminStats />
+        <AdminStats key={`stats-${refreshKey}`} />
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <RecentShipments />
-          <HubPerformance />
+          <RecentShipments key={`shipments-${refreshKey}`} />
+          <HubPerformance key={`hubs-${refreshKey}`} />
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <PerformanceMetrics />
-          <RevenueChart />
+          <PerformanceMetrics key={`metrics-${refreshKey}`} />
+          <RevenueChart key={`revenue-${refreshKey}`} />
         </div>
       </div>
     )

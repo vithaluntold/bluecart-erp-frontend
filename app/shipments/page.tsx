@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Shipment, shipmentStore } from "@/lib/shipment-store"
-import { Search, Plus, Eye, Download, Loader2 } from "lucide-react"
+import { Search, Plus, Eye, Download, Loader2, Copy } from "lucide-react"
 import Link from "next/link"
 import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/components/ui/use-toast"
@@ -21,6 +21,48 @@ export default function ShipmentsPage() {
   const [shipments, setShipments] = useState<Shipment[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const { toast } = useToast()
+
+  const handleCopyTrackingNumber = async (trackingNumber: string) => {
+    try {
+      // Use fallback method first as clipboard API might be blocked
+      const textArea = document.createElement('textarea')
+      textArea.value = trackingNumber
+      textArea.style.position = 'fixed'
+      textArea.style.left = '-999999px'
+      textArea.style.top = '-999999px'
+      document.body.appendChild(textArea)
+      textArea.focus()
+      textArea.select()
+      
+      try {
+        const successful = document.execCommand('copy')
+        if (successful) {
+          toast({
+            title: "Copied!",
+            description: `Tracking number ${trackingNumber} copied to clipboard.`,
+          })
+        } else {
+          throw new Error('Copy command failed')
+        }
+      } catch (err) {
+        console.error('Copy failed:', err)
+        toast({
+          title: "Copy Failed",
+          description: `Could not copy tracking number. Please select and copy manually: ${trackingNumber}`,
+          variant: "destructive"
+        })
+      } finally {
+        document.body.removeChild(textArea)
+      }
+    } catch (err) {
+      console.error('Could not copy text: ', err)
+      toast({
+        title: "Copy Failed",
+        description: `Could not copy tracking number. Please select and copy manually: ${trackingNumber}`,
+        variant: "destructive"
+      })
+    }
+  }
 
   // Fetch shipments from FastAPI backend via shipment store
   useEffect(() => {
@@ -135,7 +177,7 @@ export default function ShipmentsPage() {
           <h1 className="text-3xl font-bold tracking-tight text-balance">Shipment Management</h1>
           <p className="text-muted-foreground">Track and manage all shipments across the network</p>
         </div>
-        {(currentUser?.role === "admin" || currentUser?.role === "operations") && (
+        {(currentUser?.role === "admin" || currentUser?.role === "operator") && (
           <Button asChild>
             <Link href="/shipments/create">
               <Plus className="mr-2 h-4 w-4" />
@@ -216,7 +258,20 @@ export default function ShipmentsPage() {
                 ) : (
                   filteredShipments.map((shipment) => (
                     <TableRow key={shipment.id}>
-                    <TableCell className="font-medium">{shipment.trackingNumber}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        <span>{shipment.trackingNumber}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleCopyTrackingNumber(shipment.trackingNumber)}
+                          className="h-6 w-6 p-0"
+                          title="Copy tracking number"
+                        >
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="text-sm">{shipment.senderName}</span>

@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, UserPlus } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
-import { hubs, type UserRole } from "@/lib/dummy-data"
+import { type UserRole } from "@/lib/dummy-data"
 import { apiClient } from "@/lib/api-client"
 
 export default function AddUserPage() {
@@ -27,6 +27,37 @@ export default function AddUserPage() {
     password: "",
   })
   const [loading, setLoading] = useState(false)
+  const [hubs, setHubs] = useState<any[]>([])
+  const [hubsLoading, setHubsLoading] = useState(true)
+
+  // Load hubs from API
+  useEffect(() => {
+    const loadHubs = async () => {
+      try {
+        setHubsLoading(true)
+        const response = await apiClient.getHubs() as any
+        setHubs(response.hubs || [])
+      } catch (error) {
+        console.error("Failed to load hubs:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load hubs. Please try again.",
+          variant: "destructive",
+        })
+      } finally {
+        setHubsLoading(false)
+      }
+    }
+    loadHubs()
+  }, [])
+
+  const validatePhone = (phone: string): boolean => {
+    if (!phone) return true // Phone is optional
+    // Remove all non-digit characters
+    const cleanPhone = phone.replace(/\D/g, '')
+    // Check if it's exactly 10 digits
+    return cleanPhone.length === 10
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -40,6 +71,16 @@ export default function AddUserPage() {
         toast({
           title: "Validation Error",
           description: "Please fill in all required fields.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Validate phone number
+      if (formData.phone && !validatePhone(formData.phone)) {
+        toast({
+          title: "Validation Error",
+          description: "Phone number must be exactly 10 digits.",
           variant: "destructive",
         })
         return
@@ -75,11 +116,11 @@ export default function AddUserPage() {
     }
   }
 
-  const handleChange = (field: string, value: string) => {
+    const handleChange = (field: keyof typeof formData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
-  const needsHub = formData.role === "hub-manager" || formData.role === "delivery-personnel"
+  const needsHub = formData.role === "manager" || formData.role === "driver" || formData.role === "operator"
 
   return (
     <div className="space-y-6">
@@ -126,7 +167,7 @@ export default function AddUserPage() {
                 />
               </div>
 
-              <div className="space-y-2">
+                <div className="space-y-2">
                 <Label htmlFor="role">Role *</Label>
                 <Select value={formData.role} onValueChange={(value) => handleChange("role", value)} required>
                   <SelectTrigger id="role">
@@ -134,23 +175,30 @@ export default function AddUserPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="hub-manager">Hub Manager</SelectItem>
-                    <SelectItem value="delivery-personnel">Delivery Personnel</SelectItem>
-                    <SelectItem value="operations">Operations</SelectItem>
-                    <SelectItem value="customer">Customer</SelectItem>
+                    <SelectItem value="manager">Hub Manager</SelectItem>
+                    <SelectItem value="driver">Driver</SelectItem>
+                    <SelectItem value="operator">Operator</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div className="space-y-2">
+              </div>              <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number</Label>
                 <Input
                   id="phone"
                   type="tel"
-                  placeholder="+91 98765 43210"
+                  placeholder="9876543210"
                   value={formData.phone}
-                  onChange={(e) => handleChange("phone", e.target.value)}
+                  onChange={(e) => {
+                    // Only allow digits and limit to 10 characters
+                    const value = e.target.value.replace(/\D/g, '').slice(0, 10)
+                    handleChange("phone", value)
+                  }}
+                  maxLength={10}
+                  pattern="[0-9]{10}"
+                  title="Phone number must be exactly 10 digits"
                 />
+                {formData.phone && formData.phone.length > 0 && formData.phone.length !== 10 && (
+                  <p className="text-sm text-red-500">Phone number must be exactly 10 digits</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -169,18 +217,26 @@ export default function AddUserPage() {
               {needsHub && (
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="hubId">Assigned Hub *</Label>
-                  <Select value={formData.hubId} onValueChange={(value) => handleChange("hubId", value)} required>
+                  <Select 
+                    value={formData.hubId} 
+                    onValueChange={(value) => handleChange("hubId", value)} 
+                    required
+                    disabled={hubsLoading}
+                  >
                     <SelectTrigger id="hubId">
-                      <SelectValue placeholder="Select hub" />
+                      <SelectValue placeholder={hubsLoading ? "Loading hubs..." : "Select hub"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {hubs.map((hub) => (
+                      {hubs.map((hub: any) => (
                         <SelectItem key={hub.id} value={hub.id}>
-                          {hub.name} ({hub.code})
+                          {hub.name} {hub.code ? `(${hub.code})` : ''} - {hub.city || hub.address}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {hubs.length === 0 && !hubsLoading && (
+                    <p className="text-sm text-muted-foreground">No hubs available</p>
+                  )}
                 </div>
               )}
             </div>

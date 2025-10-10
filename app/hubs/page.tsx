@@ -19,21 +19,28 @@ export default function HubsPage() {
   const fetchHubs = async () => {
     try {
       setLoading(true)
-      const response = await apiClient.getHubs() as any
-      console.log('📦 Retrieved hubs:', response)
+      console.log('🔄 [HUBS PAGE] Fetching hubs from API...')
       
-      if (response && response.hubs) {
-        setHubs(response.hubs)
+      // Use direct API call with high limit like the dashboard does
+      const response = await fetch('http://localhost:8000/api/hubs?limit=1000')
+      const data = await response.json()
+      
+      console.log('📦 [HUBS PAGE] API Response:', data)
+      console.log('📦 [HUBS PAGE] Hubs found:', data.hubs?.length || 0)
+      
+      if (data && data.hubs) {
+        setHubs(data.hubs)
         toast({
           title: "Hubs loaded",
-          description: `Found ${response.hubs.length} hubs`,
+          description: `Found ${data.hubs.length} hubs`,
         })
       } else {
+        console.error('❌ [HUBS PAGE] No hubs in response:', data)
         setHubs([])
       }
       setError(null)
     } catch (err) {
-      console.error('Error fetching hubs:', err)
+      console.error('❌ [HUBS PAGE] Error fetching hubs:', err)
       setError('Failed to load hubs')
       toast({
         title: "Error",

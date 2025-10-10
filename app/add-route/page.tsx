@@ -72,7 +72,7 @@ export default function AddRoutePage() {
     fetchData()
   }, [toast])
 
-  if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "operations")) {
+  if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "operator")) {
     return (
       <div className="flex h-[calc(100vh-8rem)] items-center justify-center">
         <Card className="w-96">

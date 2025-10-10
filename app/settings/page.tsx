@@ -67,8 +67,10 @@ export default function SettingsPage() {
   // Dynamic data states
   const [hubs, setHubs] = useState<any[]>([])
   const [loadingHubs, setLoadingHubs] = useState(true)
+  const [sessions, setSessions] = useState<any[]>([])
+  const [loadingSessions, setLoadingSessions] = useState(true)
 
-  // Initialize profile data when currentUser changes
+  // Initialize profile data and load preferences when currentUser changes
   useEffect(() => {
     if (currentUser) {
       setName(currentUser.name || "")
@@ -78,10 +80,34 @@ export default function SettingsPage() {
       // Initialize address fields (you might want to add these to the user object later)
       setAddress("")
       setCity("")
-      setState("")
-      setZipCode("")
+      
+      // Load user preferences
+      loadUserPreferences()
     }
   }, [currentUser])
+
+  const loadUserPreferences = async () => {
+    if (!currentUser) return
+    
+    try {
+      const response = await apiClient.getUserPreferences(currentUser.id) as any
+      const prefs = response.preferences || {}
+      
+      // Load notification preferences
+      if (prefs.notifications) {
+        setEmailNotifications(prefs.notifications.email ?? true)
+        setSmsNotifications(prefs.notifications.sms ?? true)
+        setPushNotifications(prefs.notifications.push ?? false)
+        setDeliveryUpdates(prefs.notifications.deliveryUpdates ?? true)
+        setHubUpdates(prefs.notifications.hubUpdates ?? true)
+      }
+      
+      console.log("[v0] Loaded user preferences:", prefs)
+    } catch (error) {
+      console.error("[v0] Error loading user preferences:", error)
+      // Use defaults if loading fails
+    }
+  }
 
   // Fetch hubs on component mount
   useEffect(() => {
@@ -105,11 +131,36 @@ export default function SettingsPage() {
     fetchHubs()
   }, [toast])
 
+  // Fetch sessions on component mount
+  useEffect(() => {
+    const fetchSessions = async () => {
+      if (!currentUser?.id) return
+      
+      try {
+        setLoadingSessions(true)
+        const response = await apiClient.getUserSessions(currentUser.id) as any
+        setSessions(response.sessions || [])
+        console.log("[v0] Loaded user sessions:", response.sessions)
+      } catch (error) {
+        console.error('Failed to fetch sessions:', error)
+        toast({
+          title: "Error",
+          description: "Failed to load session data.",
+          variant: "destructive",
+        })
+      } finally {
+        setLoadingSessions(false)
+      }
+    }
+
+    fetchSessions()
+  }, [currentUser?.id, toast])
+
   if (!currentUser) return null
 
   const isAdmin = currentUser.role === "admin"
-  const isHubManager = currentUser.role === "hub-manager"
-  const isDeliveryPersonnel = currentUser.role === "delivery-personnel"
+  const isHubManager = currentUser.role === "manager"
+  const isDeliveryPersonnel = currentUser.role === "driver"
 
   // Check if profile has unsaved changes
   const hasProfileChanges = () => {
@@ -192,32 +243,163 @@ export default function SettingsPage() {
     })
   }
 
-  // Enable 2FA handler
-  const handleEnable2FA = async () => {
-    console.log("[v0] Enable 2FA clicked")
+  // 2FA setup states
+  const [twoFASecret, setTwoFASecret] = useState("")
+  const [twoFAQRData, setTwoFAQRData] = useState("")
+  const [twoFAManualCode, setTwoFAManualCode] = useState("")
+  const [verificationCode, setVerificationCode] = useState("")
+  const [setupStep, setSetupStep] = useState<"setup" | "verify">("setup")
+
+  // Load 2FA status on component mount
+  useEffect(() => {
+    if (currentUser) {
+      load2FAStatus()
+    }
+  }, [currentUser])
+
+  const load2FAStatus = async () => {
+    if (!currentUser) return
+    
+    try {
+      const response = await apiClient.get2FAStatus(currentUser.id) as any
+      setTwoFactorEnabled(response.enabled || false)
+    } catch (error) {
+      console.error("[v0] Error loading 2FA status:", error)
+    }
+  }
+
+  // Setup 2FA handler
+  const handleSetup2FA = async () => {
+    if (!currentUser) {
+      toast({
+        title: "Error",
+        description: "No user found for 2FA setup.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    console.log("[v0] Setup 2FA clicked")
     setIsEnabling2FA(true)
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+    
+    try {
+      const response = await apiClient.setup2FA(currentUser.id) as any
+      
+      setTwoFASecret(response.secret)
+      setTwoFAQRData(response.qr_data)
+      setTwoFAManualCode(response.manual_entry_code)
+      setSetupStep("verify")
+      
+      console.log("[v0] 2FA setup completed, showing verification step")
+    } catch (error) {
+      console.error("[v0] Error setting up 2FA:", error)
+      toast({
+        title: "Error",
+        description: "Failed to setup 2FA. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsEnabling2FA(false)
+    }
+  }
 
-    setTwoFactorEnabled(true)
+  // Verify 2FA handler
+  const handleVerify2FA = async () => {
+    if (!currentUser) return
+    
+    if (!verificationCode || verificationCode.length !== 6) {
+      toast({
+        title: "Invalid Code",
+        description: "Please enter a 6-digit verification code.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsEnabling2FA(true)
+    
+    try {
+      await apiClient.verify2FA(currentUser.id, verificationCode)
+      
+      setTwoFactorEnabled(true)
+      setShow2FADialog(false)
+      setSetupStep("setup")
+      setVerificationCode("")
+      
+      toast({
+        title: "2FA Enabled",
+        description: "Two-factor authentication has been enabled for your account.",
+      })
+    } catch (error) {
+      console.error("[v0] Error verifying 2FA:", error)
+      toast({
+        title: "Verification Failed",
+        description: "Invalid verification code. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsEnabling2FA(false)
+    }
+  }
+
+  // Cancel 2FA setup
+  const handleCancel2FA = () => {
     setShow2FADialog(false)
-    setIsEnabling2FA(false)
-
-    console.log("[v0] Two-factor authentication enabled")
-
-    toast({
-      title: "2FA Enabled",
-      description: "Two-factor authentication has been enabled for your account.",
-    })
+    setSetupStep("setup")
+    setVerificationCode("")
+    setTwoFASecret("")
+    setTwoFAQRData("")
+    setTwoFAManualCode("")
   }
 
   // Revoke session handler
-  const handleRevokeSession = () => {
-    console.log("[v0] Revoke session clicked")
-    toast({
-      title: "Session Revoked",
-      description: "The session has been revoked successfully.",
-    })
+  const handleRevokeSession = async (sessionId: string) => {
+    if (!currentUser?.id) return
+    
+    try {
+      console.log("[v0] Revoking session:", sessionId)
+      await apiClient.revokeSession(currentUser.id, sessionId)
+      
+      // Remove session from state
+      setSessions(prev => prev.filter(s => s.id !== sessionId))
+      
+      toast({
+        title: "Session Revoked",
+        description: "The session has been revoked successfully.",
+      })
+    } catch (error) {
+      console.error("[v0] Error revoking session:", error)
+      toast({
+        title: "Error",
+        description: "Failed to revoke session. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Revoke all sessions handler
+  const handleRevokeAllSessions = async () => {
+    if (!currentUser?.id) return
+    
+    try {
+      console.log("[v0] Revoking all sessions")
+      await apiClient.revokeAllSessions(currentUser.id)
+      
+      // Keep only current session
+      setSessions(prev => prev.filter(s => s.is_current))
+      
+      toast({
+        title: "Sessions Revoked",
+        description: "All other sessions have been revoked successfully.",
+      })
+    } catch (error) {
+      console.error("[v0] Error revoking all sessions:", error)
+      toast({
+        title: "Error", 
+        description: "Failed to revoke sessions. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   // Reset to default handler
@@ -285,23 +467,46 @@ export default function SettingsPage() {
 
   // Save notification preferences
   const handleSaveNotifications = async () => {
+    if (!currentUser) {
+      toast({
+        title: "Error",
+        description: "No user found to update preferences.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsSavingNotifications(true)
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    
+    try {
+      const preferences = {
+        notifications: {
+          email: emailNotifications,
+          sms: smsNotifications,
+          push: pushNotifications,
+          deliveryUpdates,
+          hubUpdates,
+        }
+      }
 
-    console.log("[v0] Notification preferences saved:", {
-      emailNotifications,
-      smsNotifications,
-      pushNotifications,
-      deliveryUpdates,
-      hubUpdates,
-    })
+      console.log("[v0] Saving notification preferences:", preferences)
 
-    setIsSavingNotifications(false)
-    toast({
-      title: "Preferences Saved",
-      description: "Your notification preferences have been updated successfully.",
-    })
+      await apiClient.updateUserPreferences(currentUser.id, preferences)
+
+      toast({
+        title: "Preferences Saved",
+        description: "Your notification preferences have been updated successfully.",
+      })
+    } catch (error) {
+      console.error("[v0] Error saving notification preferences:", error)
+      toast({
+        title: "Error",
+        description: "Failed to save preferences. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSavingNotifications(false)
+    }
   }
 
   // Profile handlers
@@ -482,10 +687,9 @@ export default function SettingsPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="hub-manager">Hub Manager</SelectItem>
-                        <SelectItem value="delivery-personnel">Delivery Personnel</SelectItem>
-                        <SelectItem value="operations">Operations</SelectItem>
-                        <SelectItem value="customer">Customer</SelectItem>
+                        <SelectItem value="manager">Hub Manager</SelectItem>
+                        <SelectItem value="driver">Driver</SelectItem>
+                        <SelectItem value="operator">Operator</SelectItem>
                       </SelectContent>
                     </Select>
                   ) : (
@@ -664,7 +868,11 @@ export default function SettingsPage() {
                     <Label>Two-Factor Authentication</Label>
                     <p className="text-sm text-muted-foreground">Add an extra layer of security to your account</p>
                   </div>
-                  <Button variant="outline" onClick={() => setShow2FADialog(true)} disabled={twoFactorEnabled}>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setShow2FADialog(true)} 
+                    disabled={twoFactorEnabled}
+                  >
                     {twoFactorEnabled ? "2FA Enabled" : "Enable 2FA"}
                   </Button>
                 </div>
@@ -688,15 +896,61 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div>
-                    <p className="font-medium">Current Session</p>
-                    <p className="text-sm text-muted-foreground">Chrome on Windows - Active now</p>
+                {loadingSessions ? (
+                  <div className="flex items-center justify-center py-4">
+                    <div className="text-sm text-muted-foreground">Loading sessions...</div>
                   </div>
-                  <Button variant="outline" size="sm" onClick={handleRevokeSession}>
-                    Revoke
-                  </Button>
-                </div>
+                ) : sessions.length === 0 ? (
+                  <div className="text-center py-4">
+                    <div className="text-sm text-muted-foreground">No active sessions found</div>
+                  </div>
+                ) : (
+                  <>
+                    {sessions.map((session) => (
+                      <div key={session.id} className="flex items-center justify-between rounded-lg border p-4">
+                        <div className="flex-1">
+                          <p className="font-medium">
+                            {session.is_current ? "Current Session" : "Session"}
+                            {session.is_current && (
+                              <span className="ml-2 inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                                Active
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {session.device} • {session.location}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Last activity: {new Date(session.last_activity).toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          {!session.is_current && (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => handleRevokeSession(session.id)}
+                            >
+                              Revoke
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {sessions.filter(s => !s.is_current).length > 0 && (
+                      <div className="pt-4 border-t">
+                        <Button 
+                          variant="destructive" 
+                          size="sm" 
+                          onClick={handleRevokeAllSessions}
+                          className="w-full"
+                        >
+                          Revoke All Other Sessions
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -877,24 +1131,62 @@ export default function SettingsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Enable Two-Factor Authentication</DialogTitle>
-            <DialogDescription>Scan the QR code below with your authenticator app to enable 2FA</DialogDescription>
+            <DialogDescription>
+              {setupStep === "setup" 
+                ? "Set up 2FA by scanning the QR code with your authenticator app" 
+                : "Enter the 6-digit code from your authenticator app to complete setup"
+              }
+            </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col items-center gap-4 py-4">
-            <div className="h-48 w-48 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center bg-muted">
-              <p className="text-sm text-muted-foreground">QR Code Placeholder</p>
+          
+          {setupStep === "setup" ? (
+            <div className="flex flex-col items-center gap-4 py-4">
+              <div className="h-48 w-48 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center bg-muted">
+                {twoFAQRData ? (
+                  <div className="text-center">
+                    <p className="text-xs text-muted-foreground mb-2">QR Code Data:</p>
+                    <code className="text-xs break-all">{twoFAQRData}</code>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Click "Setup" to generate QR code</p>
+                )}
+              </div>
+              {twoFAManualCode && (
+                <div className="space-y-2 text-center">
+                  <p className="text-sm font-medium">Manual Entry Code</p>
+                  <code className="text-xs bg-muted px-2 py-1 rounded">{twoFAManualCode}</code>
+                </div>
+              )}
             </div>
-            <div className="space-y-2 text-center">
-              <p className="text-sm font-medium">Manual Entry Code</p>
-              <code className="text-xs bg-muted px-2 py-1 rounded">ABCD-EFGH-IJKL-MNOP</code>
+          ) : (
+            <div className="flex flex-col gap-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="verification-code">Verification Code</Label>
+                <Input
+                  id="verification-code"
+                  placeholder="Enter 6-digit code"
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value)}
+                  maxLength={6}
+                  className="text-center font-mono"
+                />
+              </div>
             </div>
-          </div>
+          )}
+          
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShow2FADialog(false)}>
+            <Button variant="outline" onClick={handleCancel2FA}>
               Cancel
             </Button>
-            <Button onClick={handleEnable2FA} disabled={isEnabling2FA}>
-              {isEnabling2FA ? "Enabling..." : "Enable 2FA"}
-            </Button>
+            {setupStep === "setup" ? (
+              <Button onClick={handleSetup2FA} disabled={isEnabling2FA}>
+                {isEnabling2FA ? "Setting up..." : "Setup 2FA"}
+              </Button>
+            ) : (
+              <Button onClick={handleVerify2FA} disabled={isEnabling2FA || verificationCode.length !== 6}>
+                {isEnabling2FA ? "Verifying..." : "Verify & Enable"}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

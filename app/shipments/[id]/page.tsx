@@ -185,40 +185,35 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
 
   const handleCopyTrackingNumber = async (trackingNumber: string) => {
     try {
-      // Check if clipboard API is available and permissions are granted
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(trackingNumber)
-        toast({
-          title: "Copied!",
-          description: `Tracking number ${trackingNumber} copied to clipboard.`,
-        })
-      } else {
-        // Fallback for older browsers or when clipboard API is blocked
-        const textArea = document.createElement('textarea')
-        textArea.value = trackingNumber
-        textArea.style.position = 'fixed'
-        textArea.style.left = '-999999px'
-        textArea.style.top = '-999999px'
-        document.body.appendChild(textArea)
-        textArea.focus()
-        textArea.select()
-        
-        try {
-          document.execCommand('copy')
+      // Use fallback method first as clipboard API might be blocked
+      const textArea = document.createElement('textarea')
+      textArea.value = trackingNumber
+      textArea.style.position = 'fixed'
+      textArea.style.left = '-999999px'
+      textArea.style.top = '-999999px'
+      document.body.appendChild(textArea)
+      textArea.focus()
+      textArea.select()
+      
+      try {
+        const successful = document.execCommand('copy')
+        if (successful) {
           toast({
             title: "Copied!",
             description: `Tracking number ${trackingNumber} copied to clipboard.`,
           })
-        } catch (err) {
-          console.error('Fallback: Could not copy text', err)
-          toast({
-            title: "Copy Failed",
-            description: `Could not copy tracking number. Please select and copy manually: ${trackingNumber}`,
-            variant: "destructive"
-          })
-        } finally {
-          document.body.removeChild(textArea)
+        } else {
+          throw new Error('Copy command failed')
         }
+      } catch (err) {
+        console.error('Copy failed:', err)
+        toast({
+          title: "Copy Failed",
+          description: `Could not copy tracking number. Please select and copy manually: ${trackingNumber}`,
+          variant: "destructive"
+        })
+      } finally {
+        document.body.removeChild(textArea)
       }
     } catch (err) {
       console.error('Could not copy text: ', err)
